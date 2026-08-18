@@ -11,17 +11,20 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("PayrollDatabase");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                "Connection string 'PayrollDatabase' was not configured.");
+                "Connection string 'DefaultConnection' was not configured.");
         }
 
         services.AddDbContext<PayrollDbContext>(options =>
         {
-            options.UseSqlServer(connectionString);
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Payroll");
+            });
         });
 
         return services;

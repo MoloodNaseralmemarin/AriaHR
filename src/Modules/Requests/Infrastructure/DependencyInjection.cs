@@ -11,17 +11,20 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("RequestsDatabase");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                "Connection string 'RequestsDatabase' was not configured.");
+                "Connection string 'DefaultConnection' was not configured.");
         }
 
         services.AddDbContext<RequestsDbContext>(options =>
         {
-            options.UseSqlServer(connectionString);
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Requests");
+            });
         });
 
         return services;
