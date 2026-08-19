@@ -11,7 +11,7 @@ public class ShiftRepository : IShiftRepository
 
     public ShiftRepository(SchedulingDbContext dbContext)
     {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _dbContext = dbContext;
     }
 
     public async Task AddAsync(Shift shift, CancellationToken cancellationToken = default)
@@ -22,28 +22,21 @@ public class ShiftRepository : IShiftRepository
     public async Task<Shift?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Shifts
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Shift>> GetActiveShiftsByOrganizationIdAsync(
-        Guid organizationId,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Shift>> GetActiveShiftsByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Shifts
             .AsNoTracking()
-            .Where(s => s.OrganizationId == organizationId && s.IsActive)
+            .Where(s => s.OrganizationId == organizationId && s.IsActive && !s.IsDeleted)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> ExistsByNameAsync(
-        Guid organizationId,
-        string name,
-        CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsByNameAsync(string name, Guid organizationId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Shifts
-            .AsNoTracking()
-            .AnyAsync(s => s.OrganizationId == organizationId && s.Name == name, cancellationToken);
+            .AnyAsync(s => s.OrganizationId == organizationId && s.Name == name && !s.IsDeleted, cancellationToken);
     }
 
     public Task UpdateAsync(Shift shift, CancellationToken cancellationToken = default)

@@ -11,7 +11,7 @@ public class ShiftAssignmentRepository : IShiftAssignmentRepository
 
     public ShiftAssignmentRepository(SchedulingDbContext dbContext)
     {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _dbContext = dbContext;
     }
 
     public async Task AddAsync(ShiftAssignment shiftAssignment, CancellationToken cancellationToken = default)
@@ -22,9 +22,8 @@ public class ShiftAssignmentRepository : IShiftAssignmentRepository
     public async Task<ShiftAssignment?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbContext.ShiftAssignments
-            .AsNoTracking()
             .Include(sa => sa.Shift)
-            .FirstOrDefaultAsync(sa => sa.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(sa => sa.Id == id && !sa.IsDeleted, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ShiftAssignment>> GetByEmployeeAndDateRangeAsync(
@@ -36,7 +35,10 @@ public class ShiftAssignmentRepository : IShiftAssignmentRepository
         return await _dbContext.ShiftAssignments
             .AsNoTracking()
             .Include(sa => sa.Shift)
-            .Where(sa => sa.EmployeeId == employeeId && sa.Date >= startDate && sa.Date <= endDate)
+            .Where(sa => sa.EmployeeId == employeeId &&
+                        sa.Date >= startDate &&
+                        sa.Date <= endDate &&
+                        !sa.IsDeleted)
             .ToListAsync(cancellationToken);
     }
 
@@ -44,20 +46,16 @@ public class ShiftAssignmentRepository : IShiftAssignmentRepository
         Guid organizationId,
         DateOnly startDate,
         DateOnly endDate,
-        Guid? employeeId = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbContext.ShiftAssignments
+        return await _dbContext.ShiftAssignments
             .AsNoTracking()
             .Include(sa => sa.Shift)
-            .Where(sa => sa.OrganizationId == organizationId && sa.Date >= startDate && sa.Date <= endDate);
-
-        if (employeeId.HasValue)
-        {
-            query = query.Where(sa => sa.EmployeeId == employeeId.Value);
-        }
-
-        return await query.ToListAsync(cancellationToken);
+            .Where(sa => sa.OrganizationId == organizationId &&
+                        sa.Date >= startDate &&
+                        sa.Date <= endDate &&
+                        !sa.IsDeleted)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<bool> HasAssignmentOnDateAsync(
@@ -66,7 +64,8 @@ public class ShiftAssignmentRepository : IShiftAssignmentRepository
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.ShiftAssignments
-            .AsNoTracking()
-            .AnyAsync(sa => sa.EmployeeId == employeeId && sa.Date == date, cancellationToken);
+            .AnyAsync(sa => sa.EmployeeId == employeeId &&
+                            sa.Date == date &&
+                            !sa.IsDeleted, cancellationToken);
     }
 }
