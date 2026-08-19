@@ -1,31 +1,17 @@
-using AriaHR.Modules.Requests.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using AriaHR.Modules.Requests.Application.Repositories;
+using AriaHR.Modules.Requests.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AriaHR.Modules.Requests.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddRequestsModule(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddRequestsInfrastructure(this IServiceCollection services)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Connection string 'DefaultConnection' was not configured.");
-        }
-
-        services.AddDbContext<RequestsDbContext>(options =>
-        {
-            options.UseSqlServer(connectionString, sqlOptions =>
-            {
-                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Requests");
-            });
-        });
+        services.AddScoped<ILeaveRequestRepository, LeaveRequestRepository>();
+        services.AddScoped<IMissionRequestRepository, MissionRequestRepository>();
+        services.AddScoped<ILeaveTypeRepository, LeaveTypeRepository>();
+        services.AddScoped<ILeaveBalanceRepository, LeaveBalanceRepository>();
 
         return services;
     }
