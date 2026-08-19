@@ -11,10 +11,12 @@ public sealed class OrganizationDbContext : DbContext
     {
     }
 
-    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<Domain.Entities.Organization> Organizations => Set<Domain.Entities.Organization>();
+    public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<WorkLocation> WorkLocations => Set<WorkLocation>();
+    public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<QRCode> QRCodes => Set<QRCode>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

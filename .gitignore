@@ -6,3 +6,18 @@
 *.user
 *.userosscache
 *.sln.docstates
+
+# Local configuration / secrets
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# User secrets
+secrets.json
+
+# IDE / local files
