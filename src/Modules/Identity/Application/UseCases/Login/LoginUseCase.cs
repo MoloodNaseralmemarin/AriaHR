@@ -32,12 +32,13 @@ public class LoginUseCase
         string? clientIp = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+        var nationalCode = !string.IsNullOrWhiteSpace(request.NationalCode) ? request.NationalCode : request.Username;
+        if (string.IsNullOrWhiteSpace(nationalCode) || string.IsNullOrWhiteSpace(request.Password))
         {
             return null;
         }
 
-        var user = await _userRepository.GetByUsernameAsync(request.Username, cancellationToken);
+        var user = await _userRepository.GetByUsernameAsync(nationalCode, cancellationToken);
         if (user == null || !user.IsActive)
         {
             return null;
@@ -77,10 +78,14 @@ public class LoginUseCase
         user.UpdatedAtUtc = now;
         await _userRepository.UpdateAsync(user, cancellationToken);
 
+        var expiresIn = (int)Math.Max(0, (accessExpiration - now).TotalSeconds);
+
         return new AuthenticationResponse(
             accessToken,
             plainRefreshToken,
             accessExpiration,
-            refreshExpiration);
+            refreshExpiration,
+            "Bearer",
+            expiresIn);
     }
 }
