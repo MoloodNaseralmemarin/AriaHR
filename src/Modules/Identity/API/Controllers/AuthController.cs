@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AriaHR.Modules.Identity.API.Controllers;
 
 [ApiController]
+[Route("api/auth")]
 [Route("api/identity/auth")]
 public class AuthController : ControllerBase
 {
@@ -32,17 +33,56 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(AuthenticationResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
+        if (request == null)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid request",
+                Detail = "Request body is required.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var nationalCode = !string.IsNullOrWhiteSpace(request.NationalCode) ? request.NationalCode : request.Username;
+
+        if (string.IsNullOrWhiteSpace(nationalCode) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Validation failed",
+                Detail = "NationalCode and Password are required.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        if (nationalCode.Length != 10 || !nationalCode.All(char.IsDigit))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Validation failed",
+                Detail = "NationalCode must be a 10-digit numeric code.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
         var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
         var result = await _loginUseCase.ExecuteAsync(request, clientIp, cancellationToken);
 
         if (result == null)
         {
-            return Unauthorized(new { Message = "Invalid credentials." });
+            return Unauthorized(new ProblemDetails
+            {
+                Title = "Authentication failed",
+                Detail = "Invalid credentials.",
+                Status = StatusCodes.Status401Unauthorized
+            });
         }
 
         return Ok(result);
