@@ -17,35 +17,45 @@ public class RoleRepository : IRoleRepository
     public async Task<Role?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Roles
+            .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
     }
 
     public async Task<Role?> GetByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Roles
+            .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Name == name, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Role>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.Roles
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
 
     public async Task AddAsync(Role role, CancellationToken cancellationToken = default)
     {
         await _dbContext.Roles.AddAsync(role, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task UpdateAsync(Role role, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(Role role, CancellationToken cancellationToken = default)
     {
+        var local = _dbContext.Roles.Local.FirstOrDefault(r => r.Id == role.Id);
+        if (local != null)
+        {
+            _dbContext.Entry(local).State = EntityState.Detached;
+        }
+
         _dbContext.Roles.Update(role);
-        return Task.CompletedTask;
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task DeleteAsync(Role role, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(Role role, CancellationToken cancellationToken = default)
     {
         _dbContext.Roles.Remove(role);
-        return Task.CompletedTask;
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }
