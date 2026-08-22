@@ -17,6 +17,7 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task<UserRole?> GetByUserAndRoleIdAsync(Guid userId, Guid roleId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.UserRoles
+            .AsNoTracking()
             .Include(ur => ur.Role)
             .Include(ur => ur.User)
             .FirstOrDefaultAsync(ur => ur.UserId == userId && ur.RoleId == roleId, cancellationToken);
@@ -35,17 +36,19 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task AddAsync(UserRole userRole, CancellationToken cancellationToken = default)
     {
         await _dbContext.UserRoles.AddAsync(userRole, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task RemoveAsync(UserRole userRole, CancellationToken cancellationToken = default)
+    public async Task RemoveAsync(UserRole userRole, CancellationToken cancellationToken = default)
     {
         _dbContext.UserRoles.Remove(userRole);
-        return Task.CompletedTask;
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> UserHasRoleAsync(Guid userId, Guid roleId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.UserRoles
+            .AsNoTracking()
             .AnyAsync(ur => ur.UserId == userId && ur.RoleId == roleId, cancellationToken);
     }
 }
