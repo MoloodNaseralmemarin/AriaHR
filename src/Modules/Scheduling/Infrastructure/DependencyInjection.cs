@@ -1,31 +1,15 @@
-using AriaHR.Modules.Scheduling.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using AriaHR.Modules.Scheduling.Application.Repositories;
+using AriaHR.Modules.Scheduling.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AriaHR.Modules.Scheduling.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddSchedulingModule(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddSchedulingInfrastructure(this IServiceCollection services)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Connection string 'DefaultConnection' was not configured.");
-        }
-
-        services.AddDbContext<SchedulingDbContext>(options =>
-        {
-            options.UseSqlServer(connectionString, sqlOptions =>
-            {
-                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Scheduling");
-            });
-        });
+        services.AddScoped<IShiftRepository, ShiftRepository>();
+        services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();
 
         return services;
     }
