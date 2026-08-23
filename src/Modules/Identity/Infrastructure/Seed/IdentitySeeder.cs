@@ -6,11 +6,11 @@ namespace AriaHR.Modules.Identity.Infrastructure.Seed;
 
 public static class IdentitySeeder
 {
-    private static readonly string[] SystemRoles =
+    private static readonly (string Name, string Description)[] SystemRoles =
     [
-        "SystemAdmin",
-        "CenterManager",
-        "Employee"
+        ("SystemAdmin", "System Administrator"),
+        ("CenterManager", "Center Manager"),
+        ("Employee", "Employee")
     ];
 
     public static async Task SeedAsync(IdentityDbContext dbContext, CancellationToken cancellationToken = default)
@@ -22,11 +22,11 @@ public static class IdentitySeeder
             .ToListAsync(cancellationToken);
 
         var rolesToSeed = SystemRoles
-            .Where(roleName => !existingRoles.Contains(roleName))
-            .Select(roleName => new Role
+            .Where(role => !existingRoles.Contains(role.Name))
+            .Select(role => new Role
             {
-                Name = roleName,
-                Description = null,
+                Name = role.Name,
+                Description = role.Description,
                 CreatedAtUtc = DateTime.UtcNow
             })
             .ToList();

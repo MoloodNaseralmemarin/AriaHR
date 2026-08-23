@@ -20,7 +20,7 @@ public class IdentitySeederTests
     private IdentityDbContext CreateDbContext() => new(_dbContextOptions);
 
     [Fact]
-    public async Task SeedAsync_Creates_Initial_System_Roles()
+    public async Task SeedAsync_Creates_Initial_System_Roles_With_Descriptions()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -31,15 +31,21 @@ public class IdentitySeederTests
         // Assert
         var roles = await dbContext.Roles.ToListAsync();
         Assert.Equal(3, roles.Count);
-        Assert.Contains(roles, r => r.Name == "SystemAdmin");
-        Assert.Contains(roles, r => r.Name == "CenterManager");
-        Assert.Contains(roles, r => r.Name == "Employee");
 
-        foreach (var role in roles)
-        {
-            Assert.Null(role.Description);
-            Assert.NotEqual(default, role.CreatedAtUtc);
-        }
+        var admin = roles.FirstOrDefault(r => r.Name == "SystemAdmin");
+        Assert.NotNull(admin);
+        Assert.Equal("System Administrator", admin.Description);
+        Assert.NotEqual(default, admin.CreatedAtUtc);
+
+        var manager = roles.FirstOrDefault(r => r.Name == "CenterManager");
+        Assert.NotNull(manager);
+        Assert.Equal("Center Manager", manager.Description);
+        Assert.NotEqual(default, manager.CreatedAtUtc);
+
+        var employee = roles.FirstOrDefault(r => r.Name == "Employee");
+        Assert.NotNull(employee);
+        Assert.Equal("Employee", employee.Description);
+        Assert.NotEqual(default, employee.CreatedAtUtc);
     }
 
     [Fact]
@@ -69,7 +75,7 @@ public class IdentitySeederTests
         var existingRole = new Role
         {
             Name = "SystemAdmin",
-            Description = null,
+            Description = "System Administrator",
             CreatedAtUtc = DateTime.UtcNow
         };
         await dbContext.Roles.AddAsync(existingRole);
