@@ -2,6 +2,7 @@ using AriaHR.Modules.Identity.Application.DTOs;
 using AriaHR.Modules.Identity.Application.UseCases.ForgotPassword;
 using AriaHR.Modules.Identity.Application.UseCases.Login;
 using AriaHR.Modules.Identity.Application.UseCases.RefreshToken;
+using AriaHR.Modules.Identity.Application.UseCases.Registration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,17 +18,23 @@ public class AuthController : ControllerBase
     private readonly RefreshTokenUseCase _refreshTokenUseCase;
     private readonly ForgotPasswordUseCase _forgotPasswordUseCase;
     private readonly ResetPasswordUseCase _resetPasswordUseCase;
+    private readonly InitiateRegistrationUseCase _initiateRegistrationUseCase;
+    private readonly VerifyRegistrationOtpUseCase _verifyRegistrationOtpUseCase;
 
     public AuthController(
         LoginUseCase loginUseCase,
         RefreshTokenUseCase refreshTokenUseCase,
         ForgotPasswordUseCase forgotPasswordUseCase,
-        ResetPasswordUseCase resetPasswordUseCase)
+        ResetPasswordUseCase resetPasswordUseCase,
+        InitiateRegistrationUseCase initiateRegistrationUseCase,
+        VerifyRegistrationOtpUseCase verifyRegistrationOtpUseCase)
     {
         _loginUseCase = loginUseCase;
         _refreshTokenUseCase = refreshTokenUseCase;
         _forgotPasswordUseCase = forgotPasswordUseCase;
         _resetPasswordUseCase = resetPasswordUseCase;
+        _initiateRegistrationUseCase = initiateRegistrationUseCase;
+        _verifyRegistrationOtpUseCase = verifyRegistrationOtpUseCase;
     }
 
     [HttpPost("login")]
@@ -134,5 +141,59 @@ public class AuthController : ControllerBase
         }
 
         return Ok(new { Message = "Password has been successfully reset." });
+    }
+
+    [HttpPost("register/initiate")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(InitiateRegistrationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> InitiateRegistration(
+        [FromBody] InitiateRegistrationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.MobileNumber))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Validation failed",
+                Detail = "MobileNumber is required.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var result = await _initiateRegistrationUseCase.ExecuteAsync(request, cancellationToken);
+        if (!result.Success)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Registration initiation failed",
+                Detail = "Invalid mobile number.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        return Ok(result);
+    }
+
+    [HttpPost("register/verify")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(VerifyRegistrationOtpResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(VerifyRegistrationOtpResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> VerifyRegistrationOtp(
+        [FromBody] VerifyRegistrationOtpRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.MobileNumber) || string.IsNullOrWhiteSpace(request.Code))
+        {
+            return BadRequest(new VerifyRegistrationOtpResponse(false, "invalid-input", "Mobile number and verification code are required."));
+        }
+
+        var result = await _verifyRegistrationOtpUseCase.ExecuteAsync(request, cancellationToken);
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
     }
 }
