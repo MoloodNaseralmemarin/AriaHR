@@ -21,4 +21,10 @@ public class AuthNotificationService : IAuthNotificationService
         _logger.LogInformation("[NOTIFICATION PENDING] Verification challenge code generated for phone {PhoneNumber}.", phoneNumber);
         return Task.CompletedTask;
     }
+
+    public Task SendRegistrationOtpAsync(string mobileNumber, string code, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("[NOTIFICATION PENDING] Registration OTP code generated for mobile {MobileNumber}.", mobileNumber);
+        return Task.CompletedTask;
+    }
 }

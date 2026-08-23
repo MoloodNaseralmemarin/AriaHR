@@ -4,14 +4,17 @@ using AriaHR.Modules.Identity.Application.DTOs;
 using AriaHR.Modules.Identity.Application.UseCases.ForgotPassword;
 using AriaHR.Modules.Identity.Application.UseCases.Login;
 using AriaHR.Modules.Identity.Application.UseCases.RefreshToken;
+using AriaHR.Modules.Identity.Application.UseCases.Registration;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Authentication;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Identity.Infrastructure.Repositories;
+using AriaHR.Modules.Identity.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -46,15 +49,19 @@ public class AuthControllerTests
         var userRoleRepo = new UserRoleRepository(dbContext);
         var refreshRepo = new RefreshTokenRepository(dbContext);
         var resetRepo = new PasswordResetRepository(dbContext);
+        var pendingRepo = new PendingRegistrationRepository(dbContext);
         var passwordService = new PasswordService();
         var tokenService = new JwtTokenService(_jwtOptions);
+        var notificationService = new AuthNotificationService(NullLogger<AuthNotificationService>.Instance);
 
         var loginUseCase = new LoginUseCase(userRepo, userRoleRepo, refreshRepo, passwordService, tokenService);
         var refreshUseCase = new RefreshTokenUseCase(refreshRepo, userRepo, userRoleRepo, tokenService);
-        var forgotUseCase = new ForgotPasswordUseCase(userRepo, resetRepo, null!, tokenService);
+        var forgotUseCase = new ForgotPasswordUseCase(userRepo, resetRepo, notificationService, tokenService);
         var resetUseCase = new ResetPasswordUseCase(userRepo, resetRepo, refreshRepo, passwordService, tokenService);
+        var initiateUseCase = new InitiateRegistrationUseCase(userRepo, pendingRepo, notificationService, tokenService);
+        var verifyUseCase = new VerifyRegistrationOtpUseCase(userRepo, pendingRepo, tokenService);
 
-        var controller = new AuthController(loginUseCase, refreshUseCase, forgotUseCase, resetUseCase)
+        var controller = new AuthController(loginUseCase, refreshUseCase, forgotUseCase, resetUseCase, initiateUseCase, verifyUseCase)
         {
             ControllerContext = new ControllerContext
             {
