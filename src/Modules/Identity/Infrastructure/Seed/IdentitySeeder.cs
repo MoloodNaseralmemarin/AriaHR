@@ -8,8 +8,8 @@ public static class IdentitySeeder
 {
     private static readonly (string Name, string Description)[] SystemRoles =
     [
-        ("SystemAdmin", "System Administrator"),
-        ("CenterManager", "Center Manager"),
+        ("SystemAdmin", "مدیریت کل سیستم و همه مراکز"),
+        ("CenterManager", "مدیر یک مرکز؛ مثلاً دکتر، نماینده یا مسئول مرکز"),
         ("Employee", "Employee")
     ];
 
