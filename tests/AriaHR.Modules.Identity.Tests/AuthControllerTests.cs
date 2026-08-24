@@ -14,11 +14,21 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace AriaHR.Modules.Identity.Tests;
+
+public class TestHostEnvironment : IHostEnvironment
+{
+    public string EnvironmentName { get; set; } = Environments.Development;
+    public string ApplicationName { get; set; } = "AriaHR.Test";
+    public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+    public IFileProvider ContentRootFileProvider { get; set; } = null!;
+}
 
 public class AuthControllerTests
 {
@@ -51,7 +61,7 @@ public class AuthControllerTests
 
     private IdentityDbContext CreateDbContext() => new(_dbContextOptions);
 
-    private AuthController CreateController(IdentityDbContext dbContext)
+    private AuthController CreateController(IdentityDbContext dbContext, IHostEnvironment? env = null)
     {
         var userRepo = new UserRepository(dbContext);
         var roleRepo = new RoleRepository(dbContext);
@@ -64,7 +74,9 @@ public class AuthControllerTests
         var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
         var getCurrentUserUseCase = new GetCurrentUserUseCase(userRepo, userRoleRepo);
 
-        var controller = new AuthController(sendOtpUseCase, verifyOtpUseCase, getCurrentUserUseCase)
+        var hostEnv = env ?? new TestHostEnvironment();
+
+        var controller = new AuthController(sendOtpUseCase, verifyOtpUseCase, getCurrentUserUseCase, hostEnv)
         {
             ControllerContext = new ControllerContext
             {
@@ -76,7 +88,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task SendOtp_ExistingUser_Returns200OK()
+    public async Task SendOtp_DevelopmentEnvironment_Returns200OK_WithOtpCodeInResponse()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -93,19 +105,53 @@ public class AuthControllerTests
         await dbContext.Users.AddAsync(user);
         await dbContext.SaveChangesAsync();
 
-        var controller = CreateController(dbContext);
+        var devEnv = new TestHostEnvironment { EnvironmentName = Environments.Development };
+        var controller = CreateController(dbContext, devEnv);
         var request = new SendOtpRequest("09376421351");
 
         // Act
         var result = await controller.SendOtp(request, CancellationToken.None);
 
         // Assert
-        Assert.IsType<OkObjectResult>(result);
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var jsonValue = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.Contains("otpCode", jsonValue);
 
         var otpCode = await dbContext.OtpCodes.FirstOrDefaultAsync(o => o.UserId == user.Id);
         Assert.NotNull(otpCode);
         Assert.False(otpCode.IsUsed);
         Assert.Equal("09376421351", otpCode.PhoneNumber);
+    }
+
+    [Fact]
+    public async Task SendOtp_ProductionEnvironment_DoesNotExposeOtpCodeInResponse()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "مولود",
+            LastName = "ناصرالمعمارین",
+            PhoneNumber = "09376421351",
+            Email = "admin1@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await dbContext.Users.AddAsync(user);
+        await dbContext.SaveChangesAsync();
+
+        var prodEnv = new TestHostEnvironment { EnvironmentName = Environments.Production };
+        var controller = CreateController(dbContext, prodEnv);
+        var request = new SendOtpRequest("09376421351");
+
+        // Act
+        var result = await controller.SendOtp(request, CancellationToken.None);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var jsonValue = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.DoesNotContain("otpCode", jsonValue);
     }
 
     [Fact]

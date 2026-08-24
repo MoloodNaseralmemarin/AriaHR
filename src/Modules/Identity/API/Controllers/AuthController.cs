@@ -4,6 +4,7 @@ using AriaHR.Modules.Identity.Application.UseCases;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 
 namespace AriaHR.Modules.Identity.API.Controllers;
 
@@ -14,15 +15,18 @@ public class AuthController : ControllerBase
     private readonly SendOtpUseCase _sendOtpUseCase;
     private readonly VerifyOtpUseCase _verifyOtpUseCase;
     private readonly GetCurrentUserUseCase _getCurrentUserUseCase;
+    private readonly IHostEnvironment _environment;
 
     public AuthController(
         SendOtpUseCase sendOtpUseCase,
         VerifyOtpUseCase verifyOtpUseCase,
-        GetCurrentUserUseCase getCurrentUserUseCase)
+        GetCurrentUserUseCase getCurrentUserUseCase,
+        IHostEnvironment environment)
     {
         _sendOtpUseCase = sendOtpUseCase;
         _verifyOtpUseCase = verifyOtpUseCase;
         _getCurrentUserUseCase = getCurrentUserUseCase;
+        _environment = environment;
     }
 
     [HttpPost("send-otp")]
@@ -49,6 +53,15 @@ public class AuthController : ControllerBase
                 Status = StatusCodes.Status400BadRequest,
                 Title = "خطا در ارسال کد تایید",
                 Detail = result.ErrorMessage
+            });
+        }
+
+        if (_environment.IsDevelopment())
+        {
+            return Ok(new
+            {
+                message = "کد تایید با موفقیت ارسال شد",
+                otpCode = result.OtpCode
             });
         }
 
