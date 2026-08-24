@@ -98,7 +98,7 @@ public static class IdentitySeeder
                     FirstName = adminConfig.FirstName,
                     LastName = adminConfig.LastName,
                     PhoneNumber = normalizedMobile,
-                    Email = string.Empty,
+                    Email = adminConfig.Email,
                     IsActive = true,
                     CreatedAtUtc = now
                 };
