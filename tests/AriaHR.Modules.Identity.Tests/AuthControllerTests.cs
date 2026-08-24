@@ -1,10 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Reflection;
+using System.Security.Claims;
 using AriaHR.Modules.Identity.API.Controllers;
 using AriaHR.Modules.Identity.Application.DTOs;
-using AriaHR.Modules.Identity.Application.UseCases.ForgotPassword;
-using AriaHR.Modules.Identity.Application.UseCases.Login;
-using AriaHR.Modules.Identity.Application.UseCases.RefreshToken;
-using AriaHR.Modules.Identity.Application.UseCases.Registration;
+using AriaHR.Modules.Identity.Application.Options;
+using AriaHR.Modules.Identity.Application.UseCases;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Authentication;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
@@ -24,6 +24,7 @@ public class AuthControllerTests
 {
     private readonly DbContextOptions<IdentityDbContext> _dbContextOptions;
     private readonly IOptions<JwtOptions> _jwtOptions;
+    private readonly IOptions<OtpOptions> _otpOptions;
 
     public AuthControllerTests()
     {
@@ -39,6 +40,13 @@ public class AuthControllerTests
             AccessTokenExpirationMinutes = 60,
             RefreshTokenExpirationDays = 7
         });
+
+        _otpOptions = Options.Create(new OtpOptions
+        {
+            CodeLength = 4,
+            ExpirationMinutes = 2,
+            MaxAttempts = 5
+        });
     }
 
     private IdentityDbContext CreateDbContext() => new(_dbContextOptions);
@@ -46,22 +54,17 @@ public class AuthControllerTests
     private AuthController CreateController(IdentityDbContext dbContext)
     {
         var userRepo = new UserRepository(dbContext);
+        var roleRepo = new RoleRepository(dbContext);
         var userRoleRepo = new UserRoleRepository(dbContext);
-        var refreshRepo = new RefreshTokenRepository(dbContext);
-        var resetRepo = new PasswordResetRepository(dbContext);
-        var pendingRepo = new PendingRegistrationRepository(dbContext);
-        var passwordService = new PasswordService();
+        var otpRepo = new OtpCodeRepository(dbContext);
         var tokenService = new JwtTokenService(_jwtOptions);
         var notificationService = new AuthNotificationService(NullLogger<AuthNotificationService>.Instance);
 
-        var loginUseCase = new LoginUseCase(userRepo, userRoleRepo, refreshRepo, passwordService, tokenService);
-        var refreshUseCase = new RefreshTokenUseCase(refreshRepo, userRepo, userRoleRepo, tokenService);
-        var forgotUseCase = new ForgotPasswordUseCase(userRepo, resetRepo, notificationService, tokenService);
-        var resetUseCase = new ResetPasswordUseCase(userRepo, resetRepo, refreshRepo, passwordService, tokenService);
-        var initiateUseCase = new InitiateRegistrationUseCase(userRepo, pendingRepo, notificationService, tokenService);
-        var verifyUseCase = new VerifyRegistrationOtpUseCase(userRepo, pendingRepo, tokenService);
+        var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationService, tokenService, _otpOptions);
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
+        var getCurrentUserUseCase = new GetCurrentUserUseCase(userRepo, userRoleRepo);
 
-        var controller = new AuthController(loginUseCase, refreshUseCase, forgotUseCase, resetUseCase, initiateUseCase, verifyUseCase)
+        var controller = new AuthController(sendOtpUseCase, verifyOtpUseCase, getCurrentUserUseCase)
         {
             ControllerContext = new ControllerContext
             {
@@ -73,152 +76,184 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task Login_WithValidCredentials_Returns200OK_WithTokenDetails()
+    public async Task SendOtp_ExistingUser_Returns200OK()
     {
         // Arrange
         using var dbContext = CreateDbContext();
-        var passwordService = new PasswordService();
-
-        var testUser = new User
+        var user = new User
         {
             Id = Guid.NewGuid(),
-            Username = "1234567890",
-            Email = "user@ariahr.com",
+            FirstName = "مولود",
+            LastName = "ناصرالمعمارین",
+            PhoneNumber = "09376421351",
+            Email = "admin1@ariahr.com",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
-        testUser.PasswordHash = passwordService.HashPassword(testUser, "ValidPass123!");
-        await dbContext.Users.AddAsync(testUser);
+        await dbContext.Users.AddAsync(user);
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
-        var request = new LoginRequest("1234567890", "ValidPass123!");
+        var request = new SendOtpRequest("09376421351");
 
         // Act
-        var actionResult = await controller.Login(request, CancellationToken.None);
+        var result = await controller.SendOtp(request, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+
+        var otpCode = await dbContext.OtpCodes.FirstOrDefaultAsync(o => o.UserId == user.Id);
+        Assert.NotNull(otpCode);
+        Assert.False(otpCode.IsUsed);
+        Assert.Equal("09376421351", otpCode.PhoneNumber);
+    }
+
+    [Fact]
+    public async Task SendOtp_UnknownUser_Returns400BadRequest()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var controller = CreateController(dbContext);
+        var request = new SendOtpRequest("09120000000");
+
+        // Act
+        var result = await controller.SendOtp(request, CancellationToken.None);
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var problem = Assert.IsType<ProblemDetails>(badRequest.Value);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.Status);
+    }
+
+    [Fact]
+    public async Task VerifyOtp_ValidOtp_Returns200OK_WithTokenAndUser()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "مرتضی",
+            LastName = "سلطانی",
+            PhoneNumber = "09183159274",
+            Email = "admin2@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "SystemAdmin", Description = "Admin" };
+        var userRole = new UserRole { UserId = user.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(user);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+
+        var tokenService = new JwtTokenService(_jwtOptions);
+        string rawCode = "1234";
+        var otp = new OtpCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            PhoneNumber = "09183159274",
+            CodeHash = tokenService.HashToken(rawCode),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+            IsUsed = false,
+            AttemptCount = 0
+        };
+        await dbContext.OtpCodes.AddAsync(otp);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+        var request = new VerifyOtpRequest("09183159274", rawCode);
+
+        // Act
+        var result = await controller.VerifyOtp(request, CancellationToken.None);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<VerifyOtpResponse>(okResult.Value);
+
+        Assert.NotNull(response.AccessToken);
+        Assert.Equal("مرتضی", response.User.FirstName);
+        Assert.Equal("سلطانی", response.User.LastName);
+        Assert.Contains("SystemAdmin", response.User.Roles);
+
+        var updatedOtp = await dbContext.OtpCodes.FirstAsync(o => o.Id == otp.Id);
+        Assert.True(updatedOtp.IsUsed);
+    }
+
+    [Fact]
+    public async Task GetCurrentUser_Authenticated_Returns200OK_WithUserData()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "مولود",
+            LastName = "ناصرالمعمارین",
+            PhoneNumber = "09376421351",
+            Email = "admin3@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "SystemAdmin" };
+        var userRole = new UserRole { UserId = user.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(user);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, "مولود ناصرالمعمارین")
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+        };
+
+        // Act
+        var actionResult = await controller.GetCurrentUser(CancellationToken.None);
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var response = Assert.IsType<AuthenticationResponse>(okResult.Value);
+        var response = Assert.IsType<UserResponse>(okResult.Value);
 
-        Assert.NotNull(response.AccessToken);
-        Assert.NotNull(response.RefreshToken);
-        Assert.Equal("Bearer", response.TokenType);
-        Assert.True(response.ExpiresIn > 0);
+        Assert.Equal(user.Id, response.Id);
+        Assert.Equal("مولود", response.FirstName);
+        Assert.Equal("ناصرالمعمارین", response.LastName);
+        Assert.Contains("SystemAdmin", response.Roles);
     }
 
     [Fact]
-    public async Task Login_WithInvalidCredentials_Returns401Unauthorized()
+    public void SendOtp_HasAllowAnonymousAttribute()
     {
-        // Arrange
-        using var dbContext = CreateDbContext();
-        var passwordService = new PasswordService();
-
-        var testUser = new User
-        {
-            Id = Guid.NewGuid(),
-            Username = "1234567890",
-            Email = "user@ariahr.com",
-            IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-        testUser.PasswordHash = passwordService.HashPassword(testUser, "ValidPass123!");
-        await dbContext.Users.AddAsync(testUser);
-        await dbContext.SaveChangesAsync();
-
-        var controller = CreateController(dbContext);
-        var request = new LoginRequest("1234567890", "WrongPassword!");
-
-        // Act
-        var actionResult = await controller.Login(request, CancellationToken.None);
-
-        // Assert
-        var unauthorizedResult = Assert.IsType<UnauthorizedObjectResult>(actionResult);
-        var problem = Assert.IsType<ProblemDetails>(unauthorizedResult.Value);
-        Assert.Equal(StatusCodes.Status401Unauthorized, problem.Status);
-        Assert.Equal("Authentication failed", problem.Title);
-    }
-
-    [Fact]
-    public async Task Login_WithMissingNationalCode_Returns400BadRequest()
-    {
-        // Arrange
-        using var dbContext = CreateDbContext();
-        var controller = CreateController(dbContext);
-        var request = new LoginRequest("", "Password123!");
-
-        // Act
-        var actionResult = await controller.Login(request, CancellationToken.None);
-
-        // Assert
-        var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
-        var problem = Assert.IsType<ProblemDetails>(badRequestResult.Value);
-        Assert.Equal(StatusCodes.Status400BadRequest, problem.Status);
-    }
-
-    [Fact]
-    public async Task Login_WithMissingPassword_Returns400BadRequest()
-    {
-        // Arrange
-        using var dbContext = CreateDbContext();
-        var controller = CreateController(dbContext);
-        var request = new LoginRequest("1234567890", "");
-
-        // Act
-        var actionResult = await controller.Login(request, CancellationToken.None);
-
-        // Assert
-        var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
-        var problem = Assert.IsType<ProblemDetails>(badRequestResult.Value);
-        Assert.Equal(StatusCodes.Status400BadRequest, problem.Status);
-    }
-
-    [Fact]
-    public async Task Login_WithInvalidNationalCodeFormat_Returns400BadRequest()
-    {
-        // Arrange
-        using var dbContext = CreateDbContext();
-        var controller = CreateController(dbContext);
-        var request = new LoginRequest("1234", "Password123!");
-
-        // Act
-        var actionResult = await controller.Login(request, CancellationToken.None);
-
-        // Assert
-        var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
-        var problem = Assert.IsType<ProblemDetails>(badRequestResult.Value);
-        Assert.Equal(StatusCodes.Status400BadRequest, problem.Status);
-    }
-
-    [Fact]
-    public void Login_HasAllowAnonymousAttribute()
-    {
-        // Arrange & Act
-        var methodInfo = typeof(AuthController).GetMethod(nameof(AuthController.Login));
+        var methodInfo = typeof(AuthController).GetMethod(nameof(AuthController.SendOtp));
         var allowAnonymousAttr = methodInfo?.GetCustomAttribute<AllowAnonymousAttribute>();
-
-        // Assert
         Assert.NotNull(allowAnonymousAttr);
     }
 
     [Fact]
-    public void ProtectedEndpoints_HaveAuthorizeAttribute()
+    public void VerifyOtp_HasAllowAnonymousAttribute()
     {
-        // Arrange & Act
-        var rolesControllerAttr = typeof(RolesController).GetCustomAttribute<AuthorizeAttribute>();
-
-        // Assert
-        Assert.NotNull(rolesControllerAttr);
+        var methodInfo = typeof(AuthController).GetMethod(nameof(AuthController.VerifyOtp));
+        var allowAnonymousAttr = methodInfo?.GetCustomAttribute<AllowAnonymousAttribute>();
+        Assert.NotNull(allowAnonymousAttr);
     }
 
     [Fact]
-    public void LoginResponse_DoesNotExposeSensitiveFields()
+    public void GetCurrentUser_HasAuthorizeAttribute()
     {
-        // Arrange
-        var properties = typeof(AuthenticationResponse).GetProperties();
-
-        // Assert
-        Assert.DoesNotContain(properties, p => p.Name.Contains("Password", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(properties, p => p.Name.Contains("SecurityStamp", StringComparison.OrdinalIgnoreCase));
+        var methodInfo = typeof(AuthController).GetMethod(nameof(AuthController.GetCurrentUser));
+        var authorizeAttr = methodInfo?.GetCustomAttribute<AuthorizeAttribute>();
+        Assert.NotNull(authorizeAttr);
     }
 }

@@ -1,10 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using AriaHR.Modules.Identity.Application.DTOs;
-using AriaHR.Modules.Identity.Application.UseCases.ForgotPassword;
-using AriaHR.Modules.Identity.Application.UseCases.Login;
-using AriaHR.Modules.Identity.Application.UseCases.RefreshToken;
-using AriaHR.Modules.Identity.Application.UseCases.Role;
+using AriaHR.Modules.Identity.Application.Options;
+using AriaHR.Modules.Identity.Application.UseCases;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Authentication;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
@@ -21,6 +19,7 @@ public class IdentityAuthenticationTests
 {
     private readonly DbContextOptions<IdentityDbContext> _dbContextOptions;
     private readonly IOptions<JwtOptions> _jwtOptions;
+    private readonly IOptions<OtpOptions> _otpOptions;
 
     public IdentityAuthenticationTests()
     {
@@ -36,218 +35,321 @@ public class IdentityAuthenticationTests
             AccessTokenExpirationMinutes = 60,
             RefreshTokenExpirationDays = 7
         });
+
+        _otpOptions = Options.Create(new OtpOptions
+        {
+            CodeLength = 4,
+            ExpirationMinutes = 2,
+            MaxAttempts = 5
+        });
     }
 
     private IdentityDbContext CreateDbContext() => new(_dbContextOptions);
 
     [Fact]
-    public async Task ValidLogin_Returns_AccessToken_And_RefreshToken()
+    public async Task SendOtp_ExistingUser_CreatesHashedOtpCode()
     {
         // Arrange
         using var dbContext = CreateDbContext();
         var userRepo = new UserRepository(dbContext);
-        var userRoleRepo = new UserRoleRepository(dbContext);
-        var refreshRepo = new RefreshTokenRepository(dbContext);
-        var passwordService = new PasswordService();
-        var tokenService = new JwtTokenService(_jwtOptions);
-
-        var testUser = new User
-        {
-            Id = Guid.NewGuid(),
-            Username = "1234567890", // NationalCode
-            Email = "test@ariahr.com",
-            PhoneNumber = "09123456789",
-            IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-        testUser.PasswordHash = passwordService.HashPassword(testUser, "Password123!");
-        await dbContext.Users.AddAsync(testUser);
-        await dbContext.SaveChangesAsync();
-
-        var loginUseCase = new LoginUseCase(userRepo, userRoleRepo, refreshRepo, passwordService, tokenService);
-
-        // Act
-        var response = await loginUseCase.ExecuteAsync(new LoginRequest("1234567890", "Password123!"));
-
-        // Assert
-        Assert.NotNull(response);
-        Assert.False(string.IsNullOrWhiteSpace(response.AccessToken));
-        Assert.False(string.IsNullOrWhiteSpace(response.RefreshToken));
-
-        // Read JWT token
-        var handler = new JwtSecurityTokenHandler();
-        var jwtToken = handler.ReadJwtToken(response.AccessToken);
-        Assert.Equal("AriaHR.TestIssuer", jwtToken.Issuer);
-        Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.NameIdentifier && c.Value == testUser.Id.ToString());
-        Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Name && c.Value == "1234567890");
-    }
-
-    [Fact]
-    public async Task InvalidPassword_Login_Returns_Null()
-    {
-        // Arrange
-        using var dbContext = CreateDbContext();
-        var userRepo = new UserRepository(dbContext);
-        var userRoleRepo = new UserRoleRepository(dbContext);
-        var refreshRepo = new RefreshTokenRepository(dbContext);
-        var passwordService = new PasswordService();
-        var tokenService = new JwtTokenService(_jwtOptions);
-
-        var testUser = new User
-        {
-            Id = Guid.NewGuid(),
-            Username = "1234567890",
-            Email = "test@ariahr.com",
-            IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-        testUser.PasswordHash = passwordService.HashPassword(testUser, "CorrectPassword123!");
-        await dbContext.Users.AddAsync(testUser);
-        await dbContext.SaveChangesAsync();
-
-        var loginUseCase = new LoginUseCase(userRepo, userRoleRepo, refreshRepo, passwordService, tokenService);
-
-        // Act
-        var response = await loginUseCase.ExecuteAsync(new LoginRequest("1234567890", "WrongPassword!"));
-
-        // Assert
-        Assert.Null(response);
-    }
-
-    [Fact]
-    public async Task RefreshTokenRotation_Rotates_Token_And_Invalidates_Old_Token()
-    {
-        // Arrange
-        using var dbContext = CreateDbContext();
-        var userRepo = new UserRepository(dbContext);
-        var userRoleRepo = new UserRoleRepository(dbContext);
-        var refreshRepo = new RefreshTokenRepository(dbContext);
-        var passwordService = new PasswordService();
-        var tokenService = new JwtTokenService(_jwtOptions);
-
-        var testUser = new User
-        {
-            Id = Guid.NewGuid(),
-            Username = "1234567890",
-            Email = "test@ariahr.com",
-            IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-        await dbContext.Users.AddAsync(testUser);
-        await dbContext.SaveChangesAsync();
-
-        var loginUseCase = new LoginUseCase(userRepo, userRoleRepo, refreshRepo, passwordService, tokenService);
-        var refreshUseCase = new RefreshTokenUseCase(refreshRepo, userRepo, userRoleRepo, tokenService);
-
-        var initialAuth = await loginUseCase.ExecuteAsync(new LoginRequest("1234567890", ""));
-        // Manually create initial token if login failed due to password
-        testUser.PasswordHash = passwordService.HashPassword(testUser, "Pass123!");
-        await userRepo.UpdateAsync(testUser);
-
-        initialAuth = await loginUseCase.ExecuteAsync(new LoginRequest("1234567890", "Pass123!"));
-        Assert.NotNull(initialAuth);
-
-        // Act - Perform Refresh
-        var rotatedAuth = await refreshUseCase.ExecuteAsync(new RefreshTokenRequest(initialAuth.RefreshToken));
-
-        // Assert
-        Assert.NotNull(rotatedAuth);
-        Assert.NotEqual(initialAuth.RefreshToken, rotatedAuth.RefreshToken);
-
-        // Attempting to reuse old refresh token MUST fail
-        var reusedAttempt = await refreshUseCase.ExecuteAsync(new RefreshTokenRequest(initialAuth.RefreshToken));
-        Assert.Null(reusedAttempt);
-    }
-
-    [Fact]
-    public async Task ForgotPassword_And_ResetPassword_Flow_Succeeds()
-    {
-        // Arrange
-        using var dbContext = CreateDbContext();
-        var userRepo = new UserRepository(dbContext);
-        var userRoleRepo = new UserRoleRepository(dbContext);
-        var refreshRepo = new RefreshTokenRepository(dbContext);
-        var resetRepo = new PasswordResetRepository(dbContext);
-        var passwordService = new PasswordService();
+        var otpRepo = new OtpCodeRepository(dbContext);
         var tokenService = new JwtTokenService(_jwtOptions);
         var notificationService = new AuthNotificationService(NullLogger<AuthNotificationService>.Instance);
 
         var testUser = new User
         {
             Id = Guid.NewGuid(),
-            Username = "1234567890",
-            Email = "user@ariahr.com",
-            PhoneNumber = "09123456789",
+            FirstName = "Ali",
+            LastName = "Ahmadi",
+            PhoneNumber = "09121112233",
+            Email = "ali@ariahr.com",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
-        testUser.PasswordHash = passwordService.HashPassword(testUser, "OldPassword123!");
         await dbContext.Users.AddAsync(testUser);
         await dbContext.SaveChangesAsync();
 
-        var forgotUseCase = new ForgotPasswordUseCase(userRepo, resetRepo, notificationService, tokenService);
-        var resetUseCase = new ResetPasswordUseCase(userRepo, resetRepo, refreshRepo, passwordService, tokenService);
+        var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationService, tokenService, _otpOptions);
 
-        // Act 1: Forgot Password
-        await forgotUseCase.ExecuteAsync(new ForgotPasswordRequest("09123456789"));
-
-        var challenge = await dbContext.PasswordResetChallenges
-            .FirstOrDefaultAsync(c => c.UserId == testUser.Id);
-        Assert.NotNull(challenge);
-
-        // Code verification hack for test assertions: challenge stores code hash
-        // We simulate submitting a valid code challenge by inserting code
-        var customCode = "123456";
-        challenge.CodeHash = tokenService.HashToken(customCode);
-        await dbContext.SaveChangesAsync();
-
-        // Act 2: Reset Password
-        bool resetResult = await resetUseCase.ExecuteAsync(new ResetPasswordRequest("09123456789", customCode, "NewSecret123!"));
+        // Act
+        var result = await sendOtpUseCase.ExecuteAsync(new SendOtpRequest("09121112233"));
 
         // Assert
-        Assert.True(resetResult);
+        Assert.True(result.Success);
 
-        var updatedUser = await userRepo.GetByIdAsync(testUser.Id);
-        Assert.NotNull(updatedUser);
-        Assert.True(passwordService.VerifyPassword(updatedUser, updatedUser.PasswordHash, "NewSecret123!"));
+        var createdOtp = await dbContext.OtpCodes.FirstOrDefaultAsync(o => o.UserId == testUser.Id);
+        Assert.NotNull(createdOtp);
+        Assert.Equal("09121112233", createdOtp.PhoneNumber);
+        Assert.False(createdOtp.IsUsed);
+        Assert.True(createdOtp.ExpiresAtUtc > DateTime.UtcNow);
     }
 
     [Fact]
-    public async Task Admin_Can_Create_And_Assign_Role()
+    public async Task SendOtp_UnknownUser_Fails_AndDoesNotCreateAccount()
     {
         // Arrange
         using var dbContext = CreateDbContext();
         var userRepo = new UserRepository(dbContext);
-        var roleRepo = new RoleRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+        var notificationService = new AuthNotificationService(NullLogger<AuthNotificationService>.Instance);
+
+        var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationService, tokenService, _otpOptions);
+
+        // Act
+        var result = await sendOtpUseCase.ExecuteAsync(new SendOtpRequest("09999999999"));
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("یافت نشد", result.ErrorMessage);
+
+        var userCount = await dbContext.Users.CountAsync();
+        Assert.Equal(0, userCount);
+    }
+
+    [Fact]
+    public async Task VerifyOtp_CorrectOtp_IssuesJwtWithRoleClaims()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
         var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
 
         var testUser = new User
         {
             Id = Guid.NewGuid(),
-            Username = "9998887776",
-            Email = "admin@ariahr.com",
+            FirstName = "Sara",
+            LastName = "Rezai",
+            PhoneNumber = "09123334455",
+            Email = "sara@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "SystemAdmin", Description = "Admin" };
+        var userRole = new UserRole { UserId = testUser.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(testUser);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+
+        string code = "4321";
+        var otpCode = new OtpCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = testUser.Id,
+            PhoneNumber = "09123334455",
+            CodeHash = tokenService.HashToken(code),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+            IsUsed = false,
+            AttemptCount = 0
+        };
+        await dbContext.OtpCodes.AddAsync(otpCode);
+        await dbContext.SaveChangesAsync();
+
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
+
+        // Act
+        var result = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09123334455", code));
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Response);
+        Assert.False(string.IsNullOrWhiteSpace(result.Response.AccessToken));
+        Assert.Contains("SystemAdmin", result.Response.User.Roles);
+
+        var handler = new JwtSecurityTokenHandler();
+        var jwtToken = handler.ReadJwtToken(result.Response.AccessToken);
+        Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Role && c.Value == "SystemAdmin");
+        Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.NameIdentifier && c.Value == testUser.Id.ToString());
+    }
+
+    [Fact]
+    public async Task VerifyOtp_IncorrectCode_FailsAndIncrementsAttempts()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Reza",
+            LastName = "Khosravi",
+            PhoneNumber = "09124445566",
+            Email = "reza@ariahr.com",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
         await dbContext.Users.AddAsync(testUser);
+
+        var otpCode = new OtpCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = testUser.Id,
+            PhoneNumber = "09124445566",
+            CodeHash = tokenService.HashToken("1111"),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+            IsUsed = false,
+            AttemptCount = 0
+        };
+        await dbContext.OtpCodes.AddAsync(otpCode);
         await dbContext.SaveChangesAsync();
 
-        var roleUseCase = new RoleUseCase(roleRepo, userRepo, userRoleRepo);
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
 
-        // Act 1: Create Role
-        var createRoleResult = await roleUseCase.CreateRoleAsync(new CreateRoleRequest("Admin", "Administrator role"));
+        // Act
+        var result = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09124445566", "9999"));
 
-        // Assert 1
-        Assert.NotNull(createRoleResult);
-        Assert.Equal("Admin", createRoleResult.Name);
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("INVALID_CODE", result.ErrorType);
 
-        // Act 2: Assign Role
-        bool assignResult = await roleUseCase.AssignRoleAsync(new AssignRoleRequest(testUser.Id, "Admin"));
+        var updatedOtp = await dbContext.OtpCodes.FirstAsync(o => o.Id == otpCode.Id);
+        Assert.Equal(1, updatedOtp.AttemptCount);
+    }
 
-        // Assert 2
-        Assert.True(assignResult);
+    [Fact]
+    public async Task VerifyOtp_ExpiredCode_Fails()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
 
-        var userRoles = await userRoleRepo.GetRolesByUserIdAsync(testUser.Id);
-        Assert.Contains(userRoles, r => r.Name == "Admin");
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Maryam",
+            LastName = "Nouri",
+            PhoneNumber = "09125556677",
+            Email = "maryam@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await dbContext.Users.AddAsync(testUser);
+
+        var otpCode = new OtpCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = testUser.Id,
+            PhoneNumber = "09125556677",
+            CodeHash = tokenService.HashToken("2222"),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5), // Expired
+            IsUsed = false,
+            AttemptCount = 0
+        };
+        await dbContext.OtpCodes.AddAsync(otpCode);
+        await dbContext.SaveChangesAsync();
+
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
+
+        // Act
+        var result = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09125556677", "2222"));
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("EXPIRED_CODE", result.ErrorType);
+    }
+
+    [Fact]
+    public async Task VerifyOtp_AlreadyUsedCode_Fails()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Kaveh",
+            LastName = "Rad",
+            PhoneNumber = "09126667788",
+            Email = "kaveh@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await dbContext.Users.AddAsync(testUser);
+
+        var otpCode = new OtpCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = testUser.Id,
+            PhoneNumber = "09126667788",
+            CodeHash = tokenService.HashToken("3333"),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+            IsUsed = true, // Already used
+            AttemptCount = 0
+        };
+        await dbContext.OtpCodes.AddAsync(otpCode);
+        await dbContext.SaveChangesAsync();
+
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
+
+        // Act
+        var result = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09126667788", "3333"));
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("INVALID_CODE", result.ErrorType);
+    }
+
+    [Fact]
+    public async Task VerifyOtp_MaxAttemptsExceeded_Fails()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Nima",
+            LastName = "Aria",
+            PhoneNumber = "09127778899",
+            Email = "nima@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await dbContext.Users.AddAsync(testUser);
+
+        var otpCode = new OtpCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = testUser.Id,
+            PhoneNumber = "09127778899",
+            CodeHash = tokenService.HashToken("4444"),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+            IsUsed = false,
+            AttemptCount = 5 // Max attempts reached
+        };
+        await dbContext.OtpCodes.AddAsync(otpCode);
+        await dbContext.SaveChangesAsync();
+
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
+
+        // Act
+        var result = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09127778899", "4444"));
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("MAX_ATTEMPTS_EXCEEDED", result.ErrorType);
     }
 }
