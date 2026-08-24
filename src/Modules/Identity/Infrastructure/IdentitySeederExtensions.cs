@@ -1,5 +1,6 @@
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Identity.Infrastructure.Seed;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -13,10 +14,11 @@ public static class IdentitySeederExtensions
 
         using var scope = host.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetService<IdentityDbContext>();
+        var configuration = scope.ServiceProvider.GetService<IConfiguration>();
 
         if (dbContext != null)
         {
-            await IdentitySeeder.SeedAsync(dbContext);
+            await IdentitySeeder.SeedAsync(dbContext, configuration);
         }
 
         return host;
