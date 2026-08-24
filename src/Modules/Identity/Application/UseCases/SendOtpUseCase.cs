@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace AriaHR.Modules.Identity.Application.UseCases;
 
-public record SendOtpResult(bool Success, string? ErrorMessage = null);
+public record SendOtpResult(bool Success, string? ErrorMessage = null, string? OtpCode = null);
 
 public class SendOtpUseCase
 {
@@ -74,6 +74,6 @@ public class SendOtpUseCase
         await _otpCodeRepository.AddAsync(otpCode, cancellationToken);
         await _notificationService.SendOtpAsync(normalizedPhone, rawCode, cancellationToken);
 
-        return new SendOtpResult(true);
+        return new SendOtpResult(true, null, rawCode);
     }
 }
