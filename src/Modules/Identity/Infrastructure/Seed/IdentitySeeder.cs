@@ -13,7 +13,7 @@ public static class IdentitySeeder
     [
         ("SystemAdmin", "مدیریت کل سیستم و همه مراکز"),
         ("CenterManager", "مدیر یک مرکز؛ مثلاً دکتر، نماینده یا مسئول مرکز"),
-        ("Employee", "Employee")
+        ("Employee", "کارمند همان مرکز")
     ];
 
     public static async Task SeedAsync(
@@ -88,17 +88,15 @@ public static class IdentitySeeder
             string normalizedMobile = MobileNumberNormalizer.Normalize(adminConfig.PhoneNumber);
 
             var existingUser = await dbContext.Users
-                .FirstOrDefaultAsync(u => u.Username == normalizedMobile || u.PhoneNumber == normalizedMobile, cancellationToken);
+                .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
 
             if (existingUser == null)
             {
                 existingUser = new User
                 {
                     Id = Guid.NewGuid(),
-                    Username = normalizedMobile,
                     PhoneNumber = normalizedMobile,
                     Email = string.Empty,
-                    PasswordHash = string.Empty,
                     IsActive = true,
                     CreatedAtUtc = now
                 };
