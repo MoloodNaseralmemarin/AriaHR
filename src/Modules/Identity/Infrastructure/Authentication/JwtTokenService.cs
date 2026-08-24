@@ -23,13 +23,24 @@ public class JwtTokenService : ITokenService
 
     public string GenerateAccessToken(User user, IEnumerable<string> roles)
     {
+        string fullName = $"{user.FirstName} {user.LastName}".Trim();
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            fullName = user.PhoneNumber;
+        }
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Name, user.FirstName + user.LastName),
+            new(ClaimTypes.Name, fullName),
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        if (!string.IsNullOrEmpty(user.PhoneNumber))
+        {
+            claims.Add(new Claim(ClaimTypes.MobilePhone, user.PhoneNumber));
+        }
 
         if (!string.IsNullOrEmpty(user.Email))
         {

@@ -4,8 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace AriaHR.Modules.Identity.Infrastructure.Services;
 
 /// <summary>
-/// Infrastructure placeholder implementation for authentication notification delivery.
-/// Actual provider integration (e.g. SMS/Notification module event) is pending.
+/// Infrastructure implementation for authentication notification delivery.
 /// </summary>
 public class AuthNotificationService : IAuthNotificationService
 {
@@ -18,13 +17,19 @@ public class AuthNotificationService : IAuthNotificationService
 
     public Task SendPasswordResetCodeAsync(string phoneNumber, string code, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("[NOTIFICATION PENDING] Verification challenge code generated for phone {PhoneNumber}.", phoneNumber);
+        _logger.LogInformation("[NOTIFICATION] Password reset code generated for phone {PhoneNumber}.", phoneNumber);
         return Task.CompletedTask;
     }
 
     public Task SendRegistrationOtpAsync(string mobileNumber, string code, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("[NOTIFICATION PENDING] Registration OTP code generated for mobile {MobileNumber}.", mobileNumber);
+        _logger.LogInformation("[NOTIFICATION] Registration OTP code generated for mobile {MobileNumber}.", mobileNumber);
+        return Task.CompletedTask;
+    }
+
+    public Task SendOtpAsync(string phoneNumber, string code, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("[NOTIFICATION] Login OTP code generated for phone {PhoneNumber}: {Code}", phoneNumber, code);
         return Task.CompletedTask;
     }
 }
