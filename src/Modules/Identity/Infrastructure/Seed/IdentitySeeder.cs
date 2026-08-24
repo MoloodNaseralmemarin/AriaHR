@@ -95,6 +95,8 @@ public static class IdentitySeeder
                 existingUser = new User
                 {
                     Id = Guid.NewGuid(),
+                    FirstName = adminConfig.FirstName,
+                    LastName = adminConfig.LastName,
                     PhoneNumber = normalizedMobile,
                     Email = string.Empty,
                     IsActive = true,
