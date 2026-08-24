@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AriaHR.Modules.Identity.Infrastructure.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    [Migration("20260824165951_IdentityPendingChanges")]
+    [Migration("20260824223534_IdentityPendingChanges")]
     partial class IdentityPendingChanges
     {
         /// <inheritdoc />
@@ -24,6 +24,64 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("AriaHR.Modules.Identity.Domain.Entities.OtpCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PhoneNumber");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("OtpCodes", (string)null);
+                });
 
             modelBuilder.Entity("AriaHR.Modules.Identity.Domain.Entities.RefreshToken", b =>
                 {
@@ -223,6 +281,17 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("UserRoles", (string)null);
+                });
+
+            modelBuilder.Entity("AriaHR.Modules.Identity.Domain.Entities.OtpCode", b =>
+                {
+                    b.HasOne("AriaHR.Modules.Identity.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AriaHR.Modules.Identity.Domain.Entities.RefreshToken", b =>

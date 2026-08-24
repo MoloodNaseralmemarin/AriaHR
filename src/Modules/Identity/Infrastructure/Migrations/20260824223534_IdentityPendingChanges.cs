@@ -56,6 +56,36 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "OtpCodes",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    CodeHash = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    ExpiresAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsUsed = table.Column<bool>(type: "bit", nullable: false),
+                    AttemptCount = table.Column<int>(type: "int", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    DeletedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DeletedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_OtpCodes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_OtpCodes_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "RefreshTokens",
                 columns: table => new
                 {
@@ -118,6 +148,16 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_OtpCodes_PhoneNumber",
+                table: "OtpCodes",
+                column: "PhoneNumber");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OtpCodes_UserId",
+                table: "OtpCodes",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_TokenHash",
                 table: "RefreshTokens",
                 column: "TokenHash",
@@ -149,6 +189,9 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "OtpCodes");
+
             migrationBuilder.DropTable(
                 name: "RefreshTokens");
 
