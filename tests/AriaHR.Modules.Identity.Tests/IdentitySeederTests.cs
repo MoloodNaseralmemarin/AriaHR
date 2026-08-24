@@ -2,6 +2,7 @@ using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Identity.Infrastructure.Seed;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace AriaHR.Modules.Identity.Tests;
@@ -49,7 +50,7 @@ public class IdentitySeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_Is_Idempotent()
+    public async Task SeedAsync_Is_Idempotent_For_Roles()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -68,27 +69,80 @@ public class IdentitySeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_Only_Creates_Missing_Roles()
+    public async Task SeedAsync_Creates_Configured_Initial_SystemAdmin_Users_And_UserRoles()
     {
         // Arrange
         using var dbContext = CreateDbContext();
-        var existingRole = new Role
+
+        var inMemorySettings = new Dictionary<string, string?>
         {
-            Name = "SystemAdmin",
-            Description = "System Administrator",
-            CreatedAtUtc = DateTime.UtcNow
+            {"Identity:InitialAdmins:0:FirstName", "System"},
+            {"Identity:InitialAdmins:0:LastName", "Administrator"},
+            {"Identity:InitialAdmins:0:PhoneNumber", "09120000001"},
+            {"Identity:InitialAdmins:1:FirstName", "System"},
+            {"Identity:InitialAdmins:1:LastName", "Administrator"},
+            {"Identity:InitialAdmins:1:PhoneNumber", "09120000002"}
         };
-        await dbContext.Roles.AddAsync(existingRole);
-        await dbContext.SaveChangesAsync();
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings)
+            .Build();
 
         // Act
-        await IdentitySeeder.SeedAsync(dbContext);
+        await IdentitySeeder.SeedAsync(dbContext, configuration);
 
         // Assert
-        var roles = await dbContext.Roles.ToListAsync();
-        Assert.Equal(3, roles.Count);
-        Assert.Contains(roles, r => r.Name == "SystemAdmin");
-        Assert.Contains(roles, r => r.Name == "CenterManager");
-        Assert.Contains(roles, r => r.Name == "Employee");
+        var users = await dbContext.Users.ToListAsync();
+        Assert.Equal(2, users.Count);
+
+        var adminRole = await dbContext.Roles.FirstAsync(r => r.Name == "SystemAdmin");
+
+        foreach (var user in users)
+        {
+            Assert.True(user.IsActive);
+            Assert.Equal(string.Empty, user.PasswordHash);
+            Assert.NotEqual(default, user.CreatedAtUtc);
+
+            var userRole = await dbContext.UserRoles.FirstOrDefaultAsync(ur => ur.UserId == user.Id && ur.RoleId == adminRole.Id);
+            Assert.NotNull(userRole);
+        }
+    }
+
+    [Fact]
+    public async Task SeedAsync_Is_Idempotent_For_Initial_SystemAdmin_Users()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            {"Identity:InitialAdmins:0:FirstName", "System"},
+            {"Identity:InitialAdmins:0:LastName", "Administrator"},
+            {"Identity:InitialAdmins:0:PhoneNumber", "09120000001"},
+            {"Identity:InitialAdmins:1:FirstName", "System"},
+            {"Identity:InitialAdmins:1:LastName", "Administrator"},
+            {"Identity:InitialAdmins:1:PhoneNumber", "09120000002"}
+        };
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings)
+            .Build();
+
+        // Act - Run 1
+        await IdentitySeeder.SeedAsync(dbContext, configuration);
+        var usersRun1 = await dbContext.Users.ToListAsync();
+        var userRolesRun1 = await dbContext.UserRoles.ToListAsync();
+
+        Assert.Equal(2, usersRun1.Count);
+        Assert.Equal(2, userRolesRun1.Count);
+
+        // Act - Run 2
+        await IdentitySeeder.SeedAsync(dbContext, configuration);
+        var usersRun2 = await dbContext.Users.ToListAsync();
+        var userRolesRun2 = await dbContext.UserRoles.ToListAsync();
+
+        // Assert
+        Assert.Equal(2, usersRun2.Count);
+        Assert.Equal(2, userRolesRun2.Count);
     }
 }
