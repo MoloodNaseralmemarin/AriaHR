@@ -60,6 +60,8 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddIdentityModule(builder.Configuration);
+
 builder.Services.AddOrganizationModule(builder.Configuration);
 
 builder.Services.AddAttendanceModule(builder.Configuration);

@@ -1,5 +1,6 @@
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Identity.Infrastructure.Seed;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,6 +19,7 @@ public static class IdentitySeederExtensions
 
         if (dbContext != null)
         {
+            await dbContext.Database.MigrateAsync();
             await IdentitySeeder.SeedAsync(dbContext, configuration);
         }
 

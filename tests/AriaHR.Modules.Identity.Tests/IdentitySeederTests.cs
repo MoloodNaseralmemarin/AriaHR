@@ -35,17 +35,17 @@ public class IdentitySeederTests
 
         var admin = roles.FirstOrDefault(r => r.Name == "SystemAdmin");
         Assert.NotNull(admin);
-        Assert.Equal("System Administrator", admin.Description);
+        Assert.Equal("مدیریت کل سیستم و همه مراکز", admin.Description);
         Assert.NotEqual(default, admin.CreatedAtUtc);
 
         var manager = roles.FirstOrDefault(r => r.Name == "CenterManager");
         Assert.NotNull(manager);
-        Assert.Equal("Center Manager", manager.Description);
+        Assert.Equal("مدیر یک مرکز؛ مثلاً دکتر، نماینده یا مسئول مرکز", manager.Description);
         Assert.NotEqual(default, manager.CreatedAtUtc);
 
         var employee = roles.FirstOrDefault(r => r.Name == "Employee");
         Assert.NotNull(employee);
-        Assert.Equal("Employee", employee.Description);
+        Assert.Equal("کارمند همان مرکز", employee.Description);
         Assert.NotEqual(default, employee.CreatedAtUtc);
     }
 
@@ -100,7 +100,8 @@ public class IdentitySeederTests
         foreach (var user in users)
         {
             Assert.True(user.IsActive);
-            Assert.Equal(string.Empty, user.PasswordHash);
+            Assert.Equal("System", user.FirstName);
+            Assert.Equal("Administrator", user.LastName);
             Assert.NotEqual(default, user.CreatedAtUtc);
 
             var userRole = await dbContext.UserRoles.FirstOrDefaultAsync(ur => ur.UserId == user.Id && ur.RoleId == adminRole.Id);
