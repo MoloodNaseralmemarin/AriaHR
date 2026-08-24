@@ -14,11 +14,20 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace AriaHR.Modules.Identity.Tests;
+
+public class TestHostEnvironment : IHostEnvironment
+{
+    public string EnvironmentName { get; set; } = Environments.Development;
+    public string ApplicationName { get; set; } = "AriaHR.Tests";
+    public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+    public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+}
 
 public class AuthControllerTests
 {
@@ -51,7 +60,7 @@ public class AuthControllerTests
 
     private IdentityDbContext CreateDbContext() => new(_dbContextOptions);
 
-    private AuthController CreateController(IdentityDbContext dbContext)
+    private AuthController CreateController(IdentityDbContext dbContext, string environmentName = "Development")
     {
         var userRepo = new UserRepository(dbContext);
         var roleRepo = new RoleRepository(dbContext);
@@ -64,7 +73,9 @@ public class AuthControllerTests
         var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
         var getCurrentUserUseCase = new GetCurrentUserUseCase(userRepo, userRoleRepo);
 
-        var controller = new AuthController(sendOtpUseCase, verifyOtpUseCase, getCurrentUserUseCase)
+        var env = new TestHostEnvironment { EnvironmentName = environmentName };
+
+        var controller = new AuthController(sendOtpUseCase, verifyOtpUseCase, getCurrentUserUseCase, env)
         {
             ControllerContext = new ControllerContext
             {
@@ -76,7 +87,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task SendOtp_ExistingUser_Returns200OK()
+    public async Task SendOtp_DevelopmentEnvironment_Returns200OK_WithOtpCode()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -93,19 +104,61 @@ public class AuthControllerTests
         await dbContext.Users.AddAsync(user);
         await dbContext.SaveChangesAsync();
 
-        var controller = CreateController(dbContext);
+        var controller = CreateController(dbContext, "Development");
         var request = new SendOtpRequest("09376421351");
 
         // Act
         var result = await controller.SendOtp(request, CancellationToken.None);
 
         // Assert
-        Assert.IsType<OkObjectResult>(result);
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        dynamic responseValue = okResult.Value!;
+        var responseDict = ((object)okResult.Value!).GetType().GetProperties()
+            .ToDictionary(p => p.Name, p => p.GetValue(okResult.Value));
+
+        Assert.True(responseDict.ContainsKey("otpCode"));
+        string returnedOtp = (string)responseDict["otpCode"]!;
+        Assert.Equal(4, returnedOtp.Length);
 
         var otpCode = await dbContext.OtpCodes.FirstOrDefaultAsync(o => o.UserId == user.Id);
         Assert.NotNull(otpCode);
         Assert.False(otpCode.IsUsed);
         Assert.Equal("09376421351", otpCode.PhoneNumber);
+        // Verify database holds hashed version, not raw version
+        Assert.NotEqual(returnedOtp, otpCode.CodeHash);
+    }
+
+    [Fact]
+    public async Task SendOtp_ProductionEnvironment_Returns200OK_WithoutOtpCode()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "مولود",
+            LastName = "ناصرالمعمارین",
+            PhoneNumber = "09376421351",
+            Email = "admin1@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await dbContext.Users.AddAsync(user);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext, "Production");
+        var request = new SendOtpRequest("09376421351");
+
+        // Act
+        var result = await controller.SendOtp(request, CancellationToken.None);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var responseDict = ((object)okResult.Value!).GetType().GetProperties()
+            .ToDictionary(p => p.Name, p => p.GetValue(okResult.Value));
+
+        Assert.False(responseDict.ContainsKey("otpCode"));
+        Assert.Equal("کد تایید با موفقیت ارسال شد", responseDict["message"]);
     }
 
     [Fact]
