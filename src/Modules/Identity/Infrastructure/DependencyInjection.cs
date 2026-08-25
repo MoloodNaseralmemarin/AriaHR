@@ -18,6 +18,13 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        return services.AddIdentityInfrastructure(configuration);
+    }
+
+    public static IServiceCollection AddIdentityInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))
