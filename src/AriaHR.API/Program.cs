@@ -9,6 +9,7 @@ using AriaHR.Modules.Requests.Infrastructure;
 using AriaHR.Modules.Scheduling.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
