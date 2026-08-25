@@ -2,6 +2,7 @@ using System.Text;
 using AriaHR.Modules.Attendance.Infrastructure;
 using AriaHR.Modules.Identity.Infrastructure;
 using AriaHR.Modules.Notification.Infrastructure;
+using AriaHR.Modules.Organization.API;
 using AriaHR.Modules.Organization.Infrastructure;
 using AriaHR.Modules.Payroll.Infrastructure;
 using AriaHR.Modules.Reporting.Infrastructure;
@@ -14,9 +15,8 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers()
-    .AddApplicationPart(typeof(AriaHR.Modules.Organization.API.Controllers.OrganizationsController).Assembly);
-
+builder.Services.AddControllers();
+builder.Services.AddOrganizationApi();
 builder.Services.AddOpenApi();
 
 // Authentication & Authorization
@@ -73,7 +73,12 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapScalarApiReference(options =>
+    {
+        options
+            .WithTitle("AriaHR API")
+            .WithTheme(ScalarTheme.Default);
+    });
 }
 
 app.UseHttpsRedirection();
