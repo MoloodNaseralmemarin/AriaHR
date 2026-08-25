@@ -28,21 +28,21 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    var jwtKey = builder.Configuration["Jwt:Key"];
+    var jwtKey = builder.Configuration["Jwt:SecretKey"] ?? builder.Configuration["Jwt:Key"];
     if (string.IsNullOrWhiteSpace(jwtKey))
     {
         if (builder.Environment.IsDevelopment())
         {
-            jwtKey = "SuperSecretKeyForAriaHRBackendAuth12345!";
+            jwtKey = "YOUR_DEV_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG_FOR_SECURITY_CHANGEME";
         }
         else
         {
-            throw new InvalidOperationException("JWT Key 'Jwt:Key' is not configured.");
+            throw new InvalidOperationException("JWT Key 'Jwt:SecretKey' is not configured.");
         }
     }
 
-    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AriaHR";
-    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AriaHRClient";
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AriaHR.API";
+    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AriaHR.Clients";
 
     options.TokenValidationParameters = new TokenValidationParameters
     {
