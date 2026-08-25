@@ -13,17 +13,6 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(x => x.PersonnelCode)
             .IsRequired();
 
-        builder.Property(x => x.FirstName)
-            .IsRequired();
-
-        builder.Property(x => x.LastName)
-            .IsRequired();
-
-        builder.Property(x => x.NationalCode)
-            .IsRequired();
-
-        builder.Property(x => x.Mobile)
-            .IsRequired();
 
         builder.HasOne(x => x.Manager)
             .WithMany()

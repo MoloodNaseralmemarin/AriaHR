@@ -13,11 +13,13 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Scalar.AspNetCore" Version="2.17.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Modules\Organization\API\AriaHR.Modules.Organization.API.csproj" />
     <ProjectReference Include="..\Modules\Identity\Infrastructure\AriaHR.Modules.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Identity\API\AriaHR.Modules.Identity.API.csproj" />
     <ProjectReference Include="..\Modules\Organization\Infrastructure\AriaHR.Modules.Organization.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Scheduling\Infrastructure\AriaHR.Modules.Scheduling.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Attendance\Infrastructure\AriaHR.Modules.Attendance.Infrastructure.csproj" />

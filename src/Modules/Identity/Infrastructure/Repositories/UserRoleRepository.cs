@@ -11,22 +11,20 @@ public class UserRoleRepository : IUserRoleRepository
 
     public UserRoleRepository(IdentityDbContext dbContext)
     {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _dbContext = dbContext;
     }
 
     public async Task<UserRole?> GetByUserAndRoleIdAsync(Guid userId, Guid roleId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.UserRoles
-            .Include(ur => ur.Role)
-            .Include(ur => ur.User)
             .FirstOrDefaultAsync(ur => ur.UserId == userId && ur.RoleId == roleId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Role>> GetRolesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.UserRoles
-            .AsNoTracking()
             .Where(ur => ur.UserId == userId)
+            .Include(ur => ur.Role)
             .Select(ur => ur.Role!)
             .Where(r => r != null)
             .ToListAsync(cancellationToken);
@@ -35,12 +33,13 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task AddAsync(UserRole userRole, CancellationToken cancellationToken = default)
     {
         await _dbContext.UserRoles.AddAsync(userRole, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task RemoveAsync(UserRole userRole, CancellationToken cancellationToken = default)
+    public async Task RemoveAsync(UserRole userRole, CancellationToken cancellationToken = default)
     {
         _dbContext.UserRoles.Remove(userRole);
-        return Task.CompletedTask;
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> UserHasRoleAsync(Guid userId, Guid roleId, CancellationToken cancellationToken = default)

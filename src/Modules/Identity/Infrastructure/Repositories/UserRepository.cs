@@ -11,7 +11,7 @@ public class UserRepository : IUserRepository
 
     public UserRepository(IdentityDbContext dbContext)
     {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _dbContext = dbContext;
     }
 
     public async Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -23,7 +23,7 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
+            .FirstOrDefaultAsync(u => u.PhoneNumber == username || u.Email == username, cancellationToken);
     }
 
     public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
@@ -32,14 +32,21 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
     }
 
+    public async Task<User?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
+    }
+
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _dbContext.Users.AddAsync(user, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task UpdateAsync(User user, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(User user, CancellationToken cancellationToken = default)
     {
         _dbContext.Users.Update(user);
-        return Task.CompletedTask;
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }
