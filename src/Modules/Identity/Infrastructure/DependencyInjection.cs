@@ -9,6 +9,13 @@ namespace AriaHR.Modules.Identity.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddIdentityModule(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        return services.AddIdentityInfrastructure(configuration);
+    }
+
     public static IServiceCollection AddIdentityInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
