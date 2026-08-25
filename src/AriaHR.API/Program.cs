@@ -9,11 +9,14 @@ using AriaHR.Modules.Requests.Infrastructure;
 using AriaHR.Modules.Scheduling.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddApplicationPart(typeof(AriaHR.Modules.Organization.API.Controllers.OrganizationsController).Assembly);
+
 builder.Services.AddOpenApi();
 
 // Authentication & Authorization
@@ -70,6 +73,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();

@@ -1,5 +1,7 @@
 using AriaHR.Modules.Scheduling.Application.Repositories;
+using AriaHR.Modules.Scheduling.Infrastructure.Persistence;
 using AriaHR.Modules.Scheduling.Infrastructure.Repositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,6 +13,19 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            services.AddDbContext<SchedulingDbContext>(options =>
+            {
+                options.UseSqlServer(connectionString, sqlOptions =>
+                {
+                    sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Scheduling");
+                });
+            });
+        }
+
         return services.AddSchedulingInfrastructure();
     }
 
