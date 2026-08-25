@@ -1,4 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0-preview.1.25080.5" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Domain\AriaHR.Modules.Identity.Domain.csproj" />

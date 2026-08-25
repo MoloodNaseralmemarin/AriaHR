@@ -59,17 +59,13 @@ builder.Services.AddAuthorization();
 
 // AriaHR Modules
 builder.Services.AddIdentityModule(builder.Configuration);
+
 builder.Services.AddOrganizationModule(builder.Configuration);
-builder.Services.AddSchedulingModule(builder.Configuration);
+
 builder.Services.AddAttendanceModule(builder.Configuration);
-builder.Services.AddRequestsModule(builder.Configuration);
-builder.Services.AddNotificationModule(builder.Configuration);
-builder.Services.AddReportingModule(builder.Configuration);
-builder.Services.AddPayrollModule(builder.Configuration);
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
