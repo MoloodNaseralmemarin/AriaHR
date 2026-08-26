@@ -58,7 +58,12 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("SystemAdminPolicy", policy => policy.RequireRole("SystemAdmin"));
+    options.AddPolicy("CenterManagerPolicy", policy => policy.RequireRole("CenterManager", "SystemAdmin"));
+    options.AddPolicy("EmployeePolicy", policy => policy.RequireRole("Employee", "CenterManager", "SystemAdmin"));
+});
 
 builder.Services.AddIdentityModule(builder.Configuration);
 

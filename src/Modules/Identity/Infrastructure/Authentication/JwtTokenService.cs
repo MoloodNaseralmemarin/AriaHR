@@ -47,6 +47,11 @@ public class JwtTokenService : ITokenService
             claims.Add(new Claim(ClaimTypes.Email, user.Email));
         }
 
+        if (user.OrganizationId.HasValue && user.OrganizationId.Value != Guid.Empty)
+        {
+            claims.Add(new Claim("organization_id", user.OrganizationId.Value.ToString()));
+        }
+
         foreach (var role in roles)
         {
             claims.Add(new Claim(ClaimTypes.Role, role));
