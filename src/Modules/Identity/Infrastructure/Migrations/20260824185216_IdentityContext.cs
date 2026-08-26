@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace AriaHR.Modules.Identity.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class IdentityPendingChanges : Migration
+    public partial class IdentityContext : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
