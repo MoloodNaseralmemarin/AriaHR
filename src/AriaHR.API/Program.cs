@@ -1,65 +1,75 @@
 using System.Text;
 using AriaHR.Modules.Attendance.Infrastructure;
 using AriaHR.Modules.Identity.Infrastructure;
-using AriaHR.Modules.Identity.Infrastructure.Authentication;
+using AriaHR.Modules.Notification.Infrastructure;
+using AriaHR.Modules.Organization.API;
 using AriaHR.Modules.Organization.Infrastructure;
+using AriaHR.Modules.Payroll.Infrastructure;
+using AriaHR.Modules.Reporting.Infrastructure;
+using AriaHR.Modules.Requests.Infrastructure;
+using AriaHR.Modules.Scheduling.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services to the container.
 builder.Services.AddControllers();
-
+builder.Services.AddIdentityApi();
+builder.Services.AddOrganizationApi();
 builder.Services.AddOpenApi();
 
-
-var jwtOptions =
-    builder.Configuration
-        .GetSection(JwtOptions.SectionName)
-        .Get<JwtOptions>()
-    ?? new JwtOptions();
-
-var secretKey = string.IsNullOrWhiteSpace(jwtOptions.SecretKey)
-    ? "DEFAULT_DEVELOPMENT_SECRET_KEY_FOR_LOCAL_DEV_ONLY_MIN_256_BITS"
-    : jwtOptions.SecretKey;
-
-var secretKeyBytes = Encoding.UTF8.GetBytes(secretKey);
-
-builder.Services
-    .AddAuthentication(options =>
+// Authentication & Authorization
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    var jwtKey = builder.Configuration["Jwt:SecretKey"] ?? builder.Configuration["Jwt:Key"];
+    if (string.IsNullOrWhiteSpace(jwtKey))
     {
-        options.DefaultAuthenticateScheme =
-            JwtBearerDefaults.AuthenticationScheme;
-
-        options.DefaultChallengeScheme =
-            JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options =>
-    {
-        options.RequireHttpsMetadata = false; // Development only
-        options.SaveToken = true;
-
-        options.TokenValidationParameters = new TokenValidationParameters
+        if (builder.Environment.IsDevelopment())
         {
-            ValidateIssuer = true,
-            ValidIssuer = jwtOptions.Issuer,
+            jwtKey = "YOUR_DEV_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG_FOR_SECURITY_CHANGEME";
+        }
+        else
+        {
+            throw new InvalidOperationException("JWT Key 'Jwt:SecretKey' is not configured.");
+        }
+    }
 
-            ValidateAudience = true,
-            ValidAudience = jwtOptions.Audience,
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AriaHR.API";
+    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AriaHR.Clients";
 
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey =
-                new SymmetricSecurityKey(secretKeyBytes),
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+});
 
-            ValidateLifetime = true,
-
-            ClockSkew = TimeSpan.FromMinutes(1)
-        };
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
+});
 
 builder.Services.AddAuthorization();
 
+// AriaHR Modules
 builder.Services.AddIdentityModule(builder.Configuration);
 
 builder.Services.AddOrganizationModule(builder.Configuration);
@@ -71,7 +81,6 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-
     app.MapScalarApiReference(options =>
     {
         options
@@ -82,13 +91,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseRouting();
+app.UseCors("Frontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-await app.SeedIdentityAsync();
 
 app.Run();
