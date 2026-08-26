@@ -35,17 +35,17 @@ public class IdentitySeederTests
 
         var admin = roles.FirstOrDefault(r => r.Name == "SystemAdmin");
         Assert.NotNull(admin);
-        Assert.Equal("مدیریت کل سیستم و همه مراکز", admin.Description);
+        Assert.Equal("System Administrator", admin.Description);
         Assert.NotEqual(default, admin.CreatedAtUtc);
 
         var manager = roles.FirstOrDefault(r => r.Name == "CenterManager");
         Assert.NotNull(manager);
-        Assert.Equal("مدیر یک مرکز؛ مثلاً دکتر، نماینده یا مسئول مرکز", manager.Description);
+        Assert.Equal("Center Manager", manager.Description);
         Assert.NotEqual(default, manager.CreatedAtUtc);
 
         var employee = roles.FirstOrDefault(r => r.Name == "Employee");
         Assert.NotNull(employee);
-        Assert.Equal("کارمند همان مرکز", employee.Description);
+        Assert.Equal("Employee", employee.Description);
         Assert.NotEqual(default, employee.CreatedAtUtc);
     }
 
@@ -66,6 +66,32 @@ public class IdentitySeederTests
 
         // Assert
         Assert.Equal(3, subsequentRoles.Count);
+    }
+
+    [Fact]
+    public async Task SeedAsync_DoesNot_Modify_Existing_Role_Descriptions()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var customAdminRole = new Role
+        {
+            Id = Guid.NewGuid(),
+            Name = "SystemAdmin",
+            Description = "Custom Pre-existing Description",
+            CreatedAtUtc = DateTime.UtcNow.AddDays(-10)
+        };
+        await dbContext.Roles.AddAsync(customAdminRole);
+        await dbContext.SaveChangesAsync();
+
+        // Act
+        await IdentitySeeder.SeedAsync(dbContext);
+
+        // Assert
+        var adminRole = await dbContext.Roles.FirstAsync(r => r.Name == "SystemAdmin");
+        Assert.Equal("Custom Pre-existing Description", adminRole.Description);
+
+        var totalRoles = await dbContext.Roles.CountAsync();
+        Assert.Equal(3, totalRoles);
     }
 
     [Fact]

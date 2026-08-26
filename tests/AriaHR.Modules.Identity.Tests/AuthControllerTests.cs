@@ -179,8 +179,7 @@ public class AuthControllerTests
         await dbContext.Users.AddAsync(user);
         await dbContext.SaveChangesAsync();
 
-        var prodEnv = new TestHostEnvironment { EnvironmentName = Environments.Production };
-        var controller = CreateController(dbContext, prodEnv);
+        var controller = CreateController(dbContext, "Production");
         var request = new SendOtpRequest("09376421351");
 
         // Act
