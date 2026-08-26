@@ -23,6 +23,11 @@ public class User : BaseEntity
     public string PhoneNumber { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional email address.
+    /// </summary>
+    public string? Email { get; set; }
+
+    /// <summary>
     /// Indicates whether the user is allowed to authenticate.
     /// </summary>
     public bool IsActive { get; set; }
