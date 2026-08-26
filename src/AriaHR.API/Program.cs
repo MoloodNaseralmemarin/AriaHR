@@ -103,4 +103,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+await app.SeedIdentityAsync();
+
 app.Run();
