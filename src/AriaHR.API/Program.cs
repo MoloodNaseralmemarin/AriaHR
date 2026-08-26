@@ -1,5 +1,6 @@
 using System.Text;
 using AriaHR.Modules.Attendance.Infrastructure;
+using AriaHR.Modules.Identity.API;
 using AriaHR.Modules.Identity.Infrastructure;
 using AriaHR.Modules.Notification.Infrastructure;
 using AriaHR.Modules.Organization.API;
@@ -94,9 +95,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
-
 app.UseCors("Frontend");
+
+app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
