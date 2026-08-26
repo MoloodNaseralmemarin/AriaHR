@@ -194,6 +194,45 @@ public class OrganizationCreateTests
         // Assert
         var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
         Assert.Equal(StatusCodes.Status400BadRequest, badRequestResult.StatusCode);
+
+        var problemDetails = Assert.IsType<ProblemDetails>(badRequestResult.Value);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
+        Assert.Equal("ورودی نامعتبر", problemDetails.Title);
+        Assert.Contains("Invalid Organization Type", problemDetails.Detail);
+    }
+
+    [Fact]
+    public async Task Controller_Create_WithNullRequest_Returns400BadRequest()
+    {
+        // Arrange
+        using var dbContext = GetInMemoryDbContext();
+        var repository = new OrganizationRepository(dbContext);
+        var useCase = new CreateOrganizationUseCase(repository);
+        var controller = new OrganizationsController(useCase);
+
+        var expectedUserId = Guid.NewGuid();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, expectedUserId.ToString()),
+            new Claim(ClaimTypes.Role, "SystemAdmin")
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+        };
+
+        // Act
+        var actionResult = await controller.Create(null!, CancellationToken.None);
+
+        // Assert
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status400BadRequest, badRequestResult.StatusCode);
+
+        var problemDetails = Assert.IsType<ProblemDetails>(badRequestResult.Value);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
     }
 
     [Fact]

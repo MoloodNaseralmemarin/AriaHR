@@ -21,19 +21,29 @@ public class OrganizationsController : ControllerBase
 
     [HttpPost]
     [ProducesResponseType(typeof(OrganizationDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Create(
         [FromBody] CreateOrganizationRequest request,
         CancellationToken cancellationToken)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                       ?? User.FindFirst("sub")?.Value;
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                       ?? User.FindFirstValue("sub");
 
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
             return Unauthorized();
+        }
+
+        if (request == null)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ورودی نامعتبر",
+                Detail = "درخواست ارسال شده معتبر نمی‌باشد."
+            });
         }
 
         try
@@ -43,7 +53,12 @@ public class OrganizationsController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ورودی نامعتبر",
+                Detail = ex.Message
+            });
         }
     }
 }
