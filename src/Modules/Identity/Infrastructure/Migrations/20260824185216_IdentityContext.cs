@@ -6,34 +6,11 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace AriaHR.Modules.Identity.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class IdentityModelSync : Migration
+    public partial class IdentityContext : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.CreateTable(
-                name: "PendingRegistrations",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    MobileNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    VerificationCodeHash = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    ExpiresAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    AttemptCount = table.Column<int>(type: "int", nullable: false),
-                    IsVerified = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    DeletedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    DeletedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PendingRegistrations", x => x.Id);
-                });
-
             migrationBuilder.CreateTable(
                 name: "Roles",
                 columns: table => new
@@ -65,8 +42,6 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     LastLoginAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    PasswordHash = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Username = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -81,7 +56,7 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PasswordResetChallenges",
+                name: "OtpCodes",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -90,7 +65,7 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                     CodeHash = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
                     ExpiresAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsUsed = table.Column<bool>(type: "bit", nullable: false),
-                    UsedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    AttemptCount = table.Column<int>(type: "int", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -101,9 +76,9 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PasswordResetChallenges", x => x.Id);
+                    table.PrimaryKey("PK_OtpCodes", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PasswordResetChallenges_Users_UserId",
+                        name: "FK_OtpCodes_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
                         principalColumn: "Id",
@@ -173,14 +148,14 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PasswordResetChallenges_UserId",
-                table: "PasswordResetChallenges",
-                column: "UserId");
+                name: "IX_OtpCodes_PhoneNumber",
+                table: "OtpCodes",
+                column: "PhoneNumber");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PendingRegistrations_MobileNumber",
-                table: "PendingRegistrations",
-                column: "MobileNumber");
+                name: "IX_OtpCodes_UserId",
+                table: "OtpCodes",
+                column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_TokenHash",
@@ -209,22 +184,13 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
                 table: "Users",
                 column: "Email",
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_Username",
-                table: "Users",
-                column: "Username",
-                unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "PasswordResetChallenges");
-
-            migrationBuilder.DropTable(
-                name: "PendingRegistrations");
+                name: "OtpCodes");
 
             migrationBuilder.DropTable(
                 name: "RefreshTokens");

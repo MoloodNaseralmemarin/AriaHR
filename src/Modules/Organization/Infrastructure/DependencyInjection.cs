@@ -1,4 +1,7 @@
+using AriaHR.Modules.Organization.Application.Repositories;
+using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
+using AriaHR.Modules.Organization.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +29,9 @@ public static class DependencyInjection
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Organization");
             });
         });
+
+        services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+        services.AddScoped<ICreateOrganizationUseCase, CreateOrganizationUseCase>();
 
         return services;
     }

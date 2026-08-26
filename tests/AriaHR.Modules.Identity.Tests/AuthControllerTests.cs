@@ -162,6 +162,37 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task SendOtp_ProductionEnvironment_DoesNotExposeOtpCodeInResponse()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "مولود",
+            LastName = "ناصرالمعمارین",
+            PhoneNumber = "09376421351",
+            Email = "admin1@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await dbContext.Users.AddAsync(user);
+        await dbContext.SaveChangesAsync();
+
+        var prodEnv = new TestHostEnvironment { EnvironmentName = Environments.Production };
+        var controller = CreateController(dbContext, prodEnv);
+        var request = new SendOtpRequest("09376421351");
+
+        // Act
+        var result = await controller.SendOtp(request, CancellationToken.None);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var jsonValue = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.DoesNotContain("otpCode", jsonValue);
+    }
+
+    [Fact]
     public async Task SendOtp_UnknownUser_Returns400BadRequest()
     {
         // Arrange

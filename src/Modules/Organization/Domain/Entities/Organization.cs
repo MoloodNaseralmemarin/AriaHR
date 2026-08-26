@@ -11,9 +11,9 @@ public class Organization : BaseEntity
     public string Code { get; set; } = string.Empty;
     public string? NationalIdentifier { get; set; }
     public string? Phone { get; set; }
-    public string? Email { get; set; }
     public string? Address { get; set; }
     public bool IsActive { get; set; }
+    public OrganizationType Type { get; set; }
 
     public ICollection<Branch> Branches { get; set; } = new List<Branch>();
     public ICollection<Department> Departments { get; set; } = new List<Department>();
