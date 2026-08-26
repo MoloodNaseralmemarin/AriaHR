@@ -11,9 +11,9 @@ public static class IdentitySeeder
 {
     private static readonly (string Name, string Description)[] SystemRoles =
     [
-        ("SystemAdmin", "مدیریت کل سیستم و همه مراکز"),
-        ("CenterManager", "مدیر یک مرکز؛ مثلاً دکتر، نماینده یا مسئول مرکز"),
-        ("Employee", "کارمند همان مرکز")
+        ("SystemAdmin", "System Administrator"),
+        ("CenterManager", "Center Manager"),
+        ("Employee", "Employee")
     ];
 
     public static async Task SeedAsync(
