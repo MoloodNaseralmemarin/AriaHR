@@ -1,5 +1,6 @@
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.Repositories;
+using AriaHR.Modules.Organization.Domain.Entities;
 
 namespace AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
 
@@ -32,11 +33,17 @@ public class CreateOrganizationUseCase : ICreateOrganizationUseCase
             throw new ArgumentException("Organization Code is required.", nameof(request.Code));
         }
 
+        if (!Enum.IsDefined(typeof(OrganizationType), request.Type))
+        {
+            throw new ArgumentException("Invalid Organization Type.", nameof(request.Type));
+        }
+
         var organization = new Domain.Entities.Organization
         {
             Id = Guid.NewGuid(),
             Name = request.Name.Trim(),
             Code = request.Code.Trim(),
+            Type = request.Type,
             NationalIdentifier = request.NationalIdentifier?.Trim(),
             Phone = request.Phone?.Trim(),
             Address = request.Address?.Trim(),
@@ -53,6 +60,7 @@ public class CreateOrganizationUseCase : ICreateOrganizationUseCase
             Id = organization.Id,
             Name = organization.Name,
             Code = organization.Code,
+            Type = organization.Type,
             NationalIdentifier = organization.NationalIdentifier,
             Phone = organization.Phone,
             Address = organization.Address,
