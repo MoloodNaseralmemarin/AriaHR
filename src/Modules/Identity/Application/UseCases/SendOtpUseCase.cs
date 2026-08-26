@@ -8,10 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace AriaHR.Modules.Identity.Application.UseCases;
 
-public record SendOtpResult(
-    bool Success,
-    string? ErrorMessage = null,
-    string? OtpCode = null);
+public record SendOtpResult(bool Success, string? ErrorMessage = null, string? OtpCode = null);
 
 public class SendOtpUseCase
 {

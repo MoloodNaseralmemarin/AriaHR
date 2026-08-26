@@ -67,7 +67,12 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("SystemAdminPolicy", policy => policy.RequireRole("SystemAdmin"));
+    options.AddPolicy("CenterManagerPolicy", policy => policy.RequireRole("CenterManager", "SystemAdmin"));
+    options.AddPolicy("EmployeePolicy", policy => policy.RequireRole("Employee", "CenterManager", "SystemAdmin"));
+});
 
 // AriaHR Modules
 builder.Services.AddIdentityModule(builder.Configuration);

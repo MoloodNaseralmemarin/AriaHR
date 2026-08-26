@@ -15,18 +15,18 @@ public class AuthController : ControllerBase
     private readonly SendOtpUseCase _sendOtpUseCase;
     private readonly VerifyOtpUseCase _verifyOtpUseCase;
     private readonly GetCurrentUserUseCase _getCurrentUserUseCase;
-    private readonly IHostEnvironment _environment;
+    private readonly IHostEnvironment _env;
 
     public AuthController(
         SendOtpUseCase sendOtpUseCase,
         VerifyOtpUseCase verifyOtpUseCase,
         GetCurrentUserUseCase getCurrentUserUseCase,
-        IHostEnvironment environment)
+        IHostEnvironment env)
     {
         _sendOtpUseCase = sendOtpUseCase;
         _verifyOtpUseCase = verifyOtpUseCase;
         _getCurrentUserUseCase = getCurrentUserUseCase;
-        _environment = environment;
+        _env = env;
     }
 
     [HttpPost("send-otp")]
@@ -56,7 +56,7 @@ public class AuthController : ControllerBase
             });
         }
 
-        if (_environment.IsDevelopment())
+        if (_env.IsDevelopment())
         {
             return Ok(new
             {

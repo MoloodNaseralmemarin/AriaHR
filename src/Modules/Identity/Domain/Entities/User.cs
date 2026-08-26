@@ -36,4 +36,9 @@ public class User : BaseEntity
     /// Last successful login time.
     /// </summary>
     public DateTime? LastLoginAt { get; set; }
+
+    /// <summary>
+    /// Optional organization identifier for multi-tenant scope.
+    /// </summary>
+    public Guid? OrganizationId { get; set; }
 }
