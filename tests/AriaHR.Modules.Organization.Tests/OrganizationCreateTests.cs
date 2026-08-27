@@ -3,6 +3,7 @@ using System.Security.Claims;
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
+using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
@@ -122,7 +123,8 @@ public class OrganizationCreateTests
         using var dbContext = GetInMemoryDbContext();
         var repository = new OrganizationRepository(dbContext);
         var useCase = new CreateOrganizationUseCase(repository);
-        var controller = new OrganizationsController(useCase);
+        var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
+        var controller = new OrganizationsController(useCase, countUseCase);
 
         var expectedUserId = Guid.NewGuid();
         var claims = new[]
@@ -165,7 +167,8 @@ public class OrganizationCreateTests
         using var dbContext = GetInMemoryDbContext();
         var repository = new OrganizationRepository(dbContext);
         var useCase = new CreateOrganizationUseCase(repository);
-        var controller = new OrganizationsController(useCase);
+        var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
+        var controller = new OrganizationsController(useCase, countUseCase);
 
         var expectedUserId = Guid.NewGuid();
         var claims = new[]
@@ -208,7 +211,8 @@ public class OrganizationCreateTests
         using var dbContext = GetInMemoryDbContext();
         var repository = new OrganizationRepository(dbContext);
         var useCase = new CreateOrganizationUseCase(repository);
-        var controller = new OrganizationsController(useCase);
+        var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
+        var controller = new OrganizationsController(useCase, countUseCase);
 
         var expectedUserId = Guid.NewGuid();
         var claims = new[]
@@ -242,7 +246,8 @@ public class OrganizationCreateTests
         using var dbContext = GetInMemoryDbContext();
         var repository = new OrganizationRepository(dbContext);
         var useCase = new CreateOrganizationUseCase(repository);
-        var controller = new OrganizationsController(useCase);
+        var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
+        var controller = new OrganizationsController(useCase, countUseCase);
 
         // User identity without NameIdentifier claim
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
