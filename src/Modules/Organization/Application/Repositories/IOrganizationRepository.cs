@@ -6,4 +6,5 @@ public interface IOrganizationRepository
 {
     Task AddAsync(Domain.Entities.Organization organization, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
+    Task<int> CountAsync(CancellationToken cancellationToken = default);
 }
