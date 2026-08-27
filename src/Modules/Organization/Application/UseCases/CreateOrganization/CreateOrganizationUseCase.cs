@@ -47,6 +47,9 @@ public class CreateOrganizationUseCase : ICreateOrganizationUseCase
             NationalIdentifier = request.NationalIdentifier?.Trim(),
             Phone = request.Phone?.Trim(),
             Address = request.Address?.Trim(),
+            ManagerFirstName = request.ManagerFirstName,
+            ManagerLastName = request.ManagerFirstName,
+            ManagerMobile = request.ManagerFirstName,
             IsActive = request.IsActive,
             CreatedAtUtc = DateTime.UtcNow,
             CreatedByUserId = createdByUserId
@@ -57,13 +60,15 @@ public class CreateOrganizationUseCase : ICreateOrganizationUseCase
 
         return new OrganizationDto
         {
-            Id = organization.Id,
             Name = organization.Name,
             Code = organization.Code,
             Type = organization.Type,
             NationalIdentifier = organization.NationalIdentifier,
             Phone = organization.Phone,
             Address = organization.Address,
+            ManagerFirstName=organization.ManagerFirstName,
+            ManagerLastName = organization.ManagerFirstName,
+            ManagerMobile = organization.ManagerFirstName,
             IsActive = organization.IsActive,
             CreatedAtUtc = organization.CreatedAtUtc,
             CreatedByUserId = organization.CreatedByUserId
