@@ -33,11 +33,6 @@ public class User : BaseEntity
     public bool IsActive { get; set; }
 
     /// <summary>
-    /// Optional organization identifier for the user.
-    /// </summary>
-    public Guid? OrganizationId { get; set; }
-
-    /// <summary>
     /// Last successful login time.
     /// </summary>
     public DateTime? LastLoginAt { get; set; }
