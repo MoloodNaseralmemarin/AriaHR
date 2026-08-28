@@ -17,6 +17,7 @@ builder.Services.AddControllers();
 builder.Services.AddIdentityApi();
 builder.Services.AddOrganizationApi();
 
+// OpenAPI & Bearer Authentication Configuration for Scalar API Reference
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer((document, context, cancellationToken) =>
@@ -30,6 +31,7 @@ builder.Services.AddOpenApi(options =>
         };
 
         var components = document.Components ??= new OpenApiComponents();
+        components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
         components.SecuritySchemes["Bearer"] = scheme;
 
         return Task.CompletedTask;
