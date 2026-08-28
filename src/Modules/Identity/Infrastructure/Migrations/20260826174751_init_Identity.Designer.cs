@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AriaHR.Modules.Identity.Infrastructure.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    [Migration("20260824223534_IdentityPendingChanges")]
-    partial class IdentityPendingChanges
+    [Migration("20260826174751_init_Identity")]
+    partial class init_Identity
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

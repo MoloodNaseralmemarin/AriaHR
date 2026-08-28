@@ -15,18 +15,21 @@ public class AuthController : ControllerBase
     private readonly SendOtpUseCase _sendOtpUseCase;
     private readonly VerifyOtpUseCase _verifyOtpUseCase;
     private readonly GetCurrentUserUseCase _getCurrentUserUseCase;
-    private readonly IHostEnvironment _environment;
+    private readonly LogoutUseCase _logoutUseCase;
+    private readonly IHostEnvironment _env;
 
     public AuthController(
         SendOtpUseCase sendOtpUseCase,
         VerifyOtpUseCase verifyOtpUseCase,
         GetCurrentUserUseCase getCurrentUserUseCase,
-        IHostEnvironment environment)
+        LogoutUseCase logoutUseCase,
+        IHostEnvironment env)
     {
         _sendOtpUseCase = sendOtpUseCase;
         _verifyOtpUseCase = verifyOtpUseCase;
         _getCurrentUserUseCase = getCurrentUserUseCase;
-        _environment = environment;
+        _logoutUseCase = logoutUseCase;
+        _env = env;
     }
 
     [HttpPost("send-otp")]
@@ -56,7 +59,7 @@ public class AuthController : ControllerBase
             });
         }
 
-        if (_environment.IsDevelopment())
+        if (_env.IsDevelopment())
         {
             return Ok(new
             {
@@ -118,5 +121,24 @@ public class AuthController : ControllerBase
         }
 
         return Ok(currentUser);
+    }
+
+    [HttpPost("logout")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                       ?? User.FindFirstValue("sub");
+
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        await _logoutUseCase.ExecuteAsync(userId, cancellationToken);
+
+        return NoContent();
     }
 }

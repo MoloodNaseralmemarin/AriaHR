@@ -5,6 +5,7 @@ using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
+using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Services;

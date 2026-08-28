@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
+using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -13,10 +14,24 @@ namespace AriaHR.Modules.Organization.API.Controllers;
 public class OrganizationsController : ControllerBase
 {
     private readonly ICreateOrganizationUseCase _createOrganizationUseCase;
+    private readonly IGetTotalOrganizationsCountUseCase _getTotalOrganizationsCountUseCase;
 
-    public OrganizationsController(ICreateOrganizationUseCase createOrganizationUseCase)
+    public OrganizationsController(
+        ICreateOrganizationUseCase createOrganizationUseCase,
+        IGetTotalOrganizationsCountUseCase getTotalOrganizationsCountUseCase)
     {
         _createOrganizationUseCase = createOrganizationUseCase ?? throw new ArgumentNullException(nameof(createOrganizationUseCase));
+        _getTotalOrganizationsCountUseCase = getTotalOrganizationsCountUseCase ?? throw new ArgumentNullException(nameof(getTotalOrganizationsCountUseCase));
+    }
+
+    [HttpGet("count")]
+    [ProducesResponseType(typeof(OrganizationCountResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetCount(CancellationToken cancellationToken)
+    {
+        var result = await _getTotalOrganizationsCountUseCase.ExecuteAsync(cancellationToken);
+        return Ok(result);
     }
 
     [HttpPost]

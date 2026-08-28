@@ -19,7 +19,6 @@ public static class IdentitySeederExtensions
 
         if (dbContext != null)
         {
-            await dbContext.Database.MigrateAsync();
             await IdentitySeeder.SeedAsync(dbContext, configuration);
         }
 

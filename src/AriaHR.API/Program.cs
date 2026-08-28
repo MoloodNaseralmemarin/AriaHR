@@ -1,12 +1,9 @@
 using System.Text;
 using AriaHR.Modules.Attendance.Infrastructure;
+using AriaHR.Modules.Identity.API;
 using AriaHR.Modules.Identity.Infrastructure;
-using AriaHR.Modules.Identity.Infrastructure.Authentication;
+using AriaHR.Modules.Organization.API;
 using AriaHR.Modules.Organization.Infrastructure;
-using AriaHR.Modules.Payroll.Infrastructure;
-using AriaHR.Modules.Reporting.Infrastructure;
-using AriaHR.Modules.Requests.Infrastructure;
-using AriaHR.Modules.Scheduling.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -15,6 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddIdentityApi();
+builder.Services.AddOrganizationApi();
 builder.Services.AddOpenApi();
 
 // Authentication & Authorization
@@ -25,21 +24,21 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    var jwtKey = builder.Configuration["Jwt:Key"];
+    var jwtKey = builder.Configuration["Jwt:SecretKey"] ?? builder.Configuration["Jwt:Key"];
     if (string.IsNullOrWhiteSpace(jwtKey))
     {
         if (builder.Environment.IsDevelopment())
         {
-            jwtKey = "SuperSecretKeyForAriaHRBackendAuth12345!";
+            jwtKey = "YOUR_DEV_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG_FOR_SECURITY_CHANGEME";
         }
         else
         {
-            throw new InvalidOperationException("JWT Key 'Jwt:Key' is not configured.");
+            throw new InvalidOperationException("JWT Key 'Jwt:SecretKey' is not configured.");
         }
     }
 
-    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AriaHR";
-    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AriaHRClient";
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AriaHR.API";
+    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AriaHR.Clients";
 
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -53,7 +52,23 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("SystemAdminPolicy", policy => policy.RequireRole("SystemAdmin"));
+    options.AddPolicy("CenterManagerPolicy", policy => policy.RequireRole("CenterManager", "SystemAdmin"));
+    options.AddPolicy("EmployeePolicy", policy => policy.RequireRole("Employee", "CenterManager", "SystemAdmin"));
+});
 
 // AriaHR Modules
 builder.Services.AddIdentityModule(builder.Configuration);
@@ -67,7 +82,6 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-
     app.MapScalarApiReference(options =>
     {
         options
@@ -76,11 +90,15 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseCors("Frontend");
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+await app.SeedIdentityAsync();
 
 app.Run();

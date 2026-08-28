@@ -11,9 +11,9 @@ public static class IdentitySeeder
 {
     private static readonly (string Name, string Description)[] SystemRoles =
     [
-        ("SystemAdmin", "مدیریت کل سیستم و همه مراکز"),
-        ("CenterManager", "مدیر یک مرکز؛ مثلاً دکتر، نماینده یا مسئول مرکز"),
-        ("Employee", "کارمند همان مرکز")
+        ("SystemAdmin", "System Administrator"),
+        ("CenterManager", "Center Manager"),
+        ("Employee", "Employee")
     ];
 
     public static async Task SeedAsync(
@@ -28,6 +28,7 @@ public static class IdentitySeeder
         if (configuration != null)
         {
             await SeedInitialAdminsAsync(dbContext, configuration, cancellationToken);
+            await SeedConfiguredUsersAsync(dbContext, configuration, cancellationToken);
         }
     }
 
@@ -121,6 +122,77 @@ public static class IdentitySeeder
 
                 await dbContext.UserRoles.AddAsync(userRole, cancellationToken);
                 await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+    }
+
+    private static async Task SeedConfiguredUsersAsync(
+        IdentityDbContext dbContext,
+        IConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        var seedUsers = configuration
+            .GetSection("Identity:SeedUsers")
+            .Get<List<SeedUserOptions>>() ?? [];
+
+        if (seedUsers.Count == 0)
+        {
+            return;
+        }
+
+        var allRoles = await dbContext.Roles.ToListAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+
+        foreach (var userConfig in seedUsers)
+        {
+            if (string.IsNullOrWhiteSpace(userConfig.PhoneNumber))
+            {
+                continue;
+            }
+
+            string normalizedMobile = MobileNumberNormalizer.Normalize(userConfig.PhoneNumber);
+
+            var existingUser = await dbContext.Users
+                .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
+
+            if (existingUser == null)
+            {
+                existingUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    FirstName = userConfig.FirstName,
+                    LastName = userConfig.LastName,
+                    PhoneNumber = normalizedMobile,
+                    Email = string.Empty,
+                    IsActive = true,
+                    CreatedAtUtc = now
+                };
+
+                await dbContext.Users.AddAsync(existingUser, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            if (!string.IsNullOrWhiteSpace(userConfig.Role))
+            {
+                var targetRole = allRoles.FirstOrDefault(r => string.Equals(r.Name, userConfig.Role, StringComparison.OrdinalIgnoreCase));
+                if (targetRole != null)
+                {
+                    var existingUserRole = await dbContext.UserRoles
+                        .FirstOrDefaultAsync(ur => ur.UserId == existingUser.Id && ur.RoleId == targetRole.Id, cancellationToken);
+
+                    if (existingUserRole == null)
+                    {
+                        var userRole = new UserRole
+                        {
+                            UserId = existingUser.Id,
+                            RoleId = targetRole.Id,
+                            CreatedAtUtc = now
+                        };
+
+                        await dbContext.UserRoles.AddAsync(userRole, cancellationToken);
+                        await dbContext.SaveChangesAsync(cancellationToken);
+                    }
+                }
             }
         }
     }

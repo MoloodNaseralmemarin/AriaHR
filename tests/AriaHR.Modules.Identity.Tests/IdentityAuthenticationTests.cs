@@ -76,12 +76,68 @@ public class IdentityAuthenticationTests
 
         // Assert
         Assert.True(result.Success);
+        Assert.NotNull(result.OtpCode);
+        Assert.Equal(4, result.OtpCode.Length);
 
         var createdOtp = await dbContext.OtpCodes.FirstOrDefaultAsync(o => o.UserId == testUser.Id);
         Assert.NotNull(createdOtp);
         Assert.Equal("09121112233", createdOtp.PhoneNumber);
         Assert.False(createdOtp.IsUsed);
         Assert.True(createdOtp.ExpiresAtUtc > DateTime.UtcNow);
+
+        // Raw code must not match database stored hash directly
+        Assert.NotEqual(result.OtpCode, createdOtp.CodeHash);
+        // Hashing raw code must match database stored hash
+        Assert.Equal(tokenService.HashToken(result.OtpCode), createdOtp.CodeHash);
+    }
+
+    [Fact]
+    public async Task SendOtp_ThenVerifyOtp_WithReturnedCode_Succeeds_AndPreventsReuse()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+        var notificationService = new AuthNotificationService(NullLogger<AuthNotificationService>.Instance);
+
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "SystemAdmin",
+            LastName = "User",
+            PhoneNumber = "09376421351",
+            Email = "admin@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "SystemAdmin", Description = "System Admin Role" };
+        var userRole = new UserRole { UserId = testUser.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(testUser);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+        await dbContext.SaveChangesAsync();
+
+        var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationService, tokenService, _otpOptions);
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
+
+        // 1. Send OTP
+        var sendResult = await sendOtpUseCase.ExecuteAsync(new SendOtpRequest("09376421351"));
+        Assert.True(sendResult.Success);
+        Assert.NotNull(sendResult.OtpCode);
+
+        // 2. Verify with exact generated code
+        var verifyResult = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09376421351", sendResult.OtpCode));
+        Assert.True(verifyResult.Success);
+        Assert.NotNull(verifyResult.Response);
+        Assert.Contains("SystemAdmin", verifyResult.Response.User.Roles);
+
+        // 3. Reusing same code must fail
+        var reuseResult = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09376421351", sendResult.OtpCode));
+        Assert.False(reuseResult.Success);
+        Assert.Equal("INVALID_CODE", reuseResult.ErrorType);
     }
 
     [Fact]
@@ -164,6 +220,67 @@ public class IdentityAuthenticationTests
         var jwtToken = handler.ReadJwtToken(result.Response.AccessToken);
         Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Role && c.Value == "SystemAdmin");
         Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.NameIdentifier && c.Value == testUser.Id.ToString());
+    }
+
+    [Fact]
+    public async Task VerifyOtp_UserWithOrganization_IncludesOrganizationIdAndJwtClaim()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+
+        var orgId = Guid.NewGuid();
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Center",
+            LastName = "Manager",
+            PhoneNumber = "09000000002",
+            Email = "manager@ariahr.com",
+            IsActive = true,
+            OrganizationId = orgId,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "CenterManager", Description = "Center Manager" };
+        var userRole = new UserRole { UserId = testUser.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(testUser);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+
+        string code = "1234";
+        var otpCode = new OtpCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = testUser.Id,
+            PhoneNumber = "09000000002",
+            CodeHash = tokenService.HashToken(code),
+            CreatedAtUtc = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+            IsUsed = false,
+            AttemptCount = 0
+        };
+        await dbContext.OtpCodes.AddAsync(otpCode);
+        await dbContext.SaveChangesAsync();
+
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
+
+        // Act
+        var result = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09000000002", code));
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Response);
+        Assert.Equal(orgId, result.Response.User.OrganizationId);
+        Assert.Contains("CenterManager", result.Response.User.Roles);
+
+        var handler = new JwtSecurityTokenHandler();
+        var jwtToken = handler.ReadJwtToken(result.Response.AccessToken);
+        Assert.Contains(jwtToken.Claims, c => c.Type == "organization_id" && c.Value == orgId.ToString());
+        Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Role && c.Value == "CenterManager");
     }
 
     [Fact]
@@ -351,5 +468,55 @@ public class IdentityAuthenticationTests
         // Assert
         Assert.False(result.Success);
         Assert.Equal("MAX_ATTEMPTS_EXCEEDED", result.ErrorType);
+    }
+
+    [Fact]
+    public async Task LogoutUseCase_RevokesAllActiveTokensForUser()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var refreshTokenRepo = new RefreshTokenRepository(dbContext);
+        var logoutUseCase = new LogoutUseCase(refreshTokenRepo);
+
+        var userId = Guid.NewGuid();
+        var activeToken1 = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = "hash1",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
+            IsRevoked = false
+        };
+        var activeToken2 = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = "hash2",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(2),
+            IsRevoked = false
+        };
+        var otherUserToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            TokenHash = "hash3",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
+            IsRevoked = false
+        };
+
+        await dbContext.RefreshTokens.AddRangeAsync(activeToken1, activeToken2, otherUserToken);
+        await dbContext.SaveChangesAsync();
+
+        // Act
+        await logoutUseCase.ExecuteAsync(userId, CancellationToken.None);
+
+        // Assert
+        var token1 = await dbContext.RefreshTokens.FirstAsync(t => t.Id == activeToken1.Id);
+        var token2 = await dbContext.RefreshTokens.FirstAsync(t => t.Id == activeToken2.Id);
+        var token3 = await dbContext.RefreshTokens.FirstAsync(t => t.Id == otherUserToken.Id);
+
+        Assert.NotNull(token1.RevokedAtUtc);
+        Assert.NotNull(token2.RevokedAtUtc);
+        Assert.Null(token3.RevokedAtUtc);
     }
 }
