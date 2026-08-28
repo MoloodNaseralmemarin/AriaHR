@@ -2,7 +2,10 @@ using System.Reflection;
 using System.Security.Claims;
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
+using AriaHR.Modules.Organization.Application.Services;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
+using AriaHR.Modules.Organization.Application.UseCases.GetOrganizationsDashboardSummary;
+using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
@@ -97,9 +100,12 @@ public class OrganizationCountTests
         await dbContext.SaveChangesAsync();
 
         var repository = new OrganizationRepository(dbContext);
-        var createUseCase = new CreateOrganizationUseCase(repository);
+        var managerService = new DummyOrganizationManagerIdentityService();
+        var createUseCase = new CreateOrganizationUseCase(managerService);
         var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
-        var controller = new OrganizationsController(createUseCase, countUseCase);
+        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(repository);
+        var recentUseCase = new GetRecentOrganizationsUseCase(repository);
+        var controller = new OrganizationsController(createUseCase, countUseCase, summaryUseCase, recentUseCase);
 
         // Act
         var actionResult = await controller.GetCount(CancellationToken.None);
@@ -110,5 +116,13 @@ public class OrganizationCountTests
 
         var response = Assert.IsType<OrganizationCountResponse>(okResult.Value);
         Assert.Equal(1, response.TotalCount);
+    }
+
+    private class DummyOrganizationManagerIdentityService : IOrganizationManagerIdentityService
+    {
+        public Task<OrganizationDto> CreateOrganizationWithManagerAsync(CreateOrganizationRequest request, Guid createdByUserId, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
