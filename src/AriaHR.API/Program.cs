@@ -30,6 +30,7 @@ builder.Services.AddOpenApi(options =>
         };
 
         var components = document.Components ??= new OpenApiComponents();
+        components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
         components.SecuritySchemes["Bearer"] = scheme;
 
         return Task.CompletedTask;
