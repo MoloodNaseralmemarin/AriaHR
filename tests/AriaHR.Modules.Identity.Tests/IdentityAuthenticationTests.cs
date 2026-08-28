@@ -469,4 +469,54 @@ public class IdentityAuthenticationTests
         Assert.False(result.Success);
         Assert.Equal("MAX_ATTEMPTS_EXCEEDED", result.ErrorType);
     }
+
+    [Fact]
+    public async Task LogoutUseCase_RevokesAllActiveTokensForUser()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var refreshTokenRepo = new RefreshTokenRepository(dbContext);
+        var logoutUseCase = new LogoutUseCase(refreshTokenRepo);
+
+        var userId = Guid.NewGuid();
+        var activeToken1 = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = "hash1",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
+            IsRevoked = false
+        };
+        var activeToken2 = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = "hash2",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(2),
+            IsRevoked = false
+        };
+        var otherUserToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            TokenHash = "hash3",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
+            IsRevoked = false
+        };
+
+        await dbContext.RefreshTokens.AddRangeAsync(activeToken1, activeToken2, otherUserToken);
+        await dbContext.SaveChangesAsync();
+
+        // Act
+        await logoutUseCase.ExecuteAsync(userId, CancellationToken.None);
+
+        // Assert
+        var token1 = await dbContext.RefreshTokens.FirstAsync(t => t.Id == activeToken1.Id);
+        var token2 = await dbContext.RefreshTokens.FirstAsync(t => t.Id == activeToken2.Id);
+        var token3 = await dbContext.RefreshTokens.FirstAsync(t => t.Id == otherUserToken.Id);
+
+        Assert.NotNull(token1.RevokedAtUtc);
+        Assert.NotNull(token2.RevokedAtUtc);
+        Assert.Null(token3.RevokedAtUtc);
+    }
 }

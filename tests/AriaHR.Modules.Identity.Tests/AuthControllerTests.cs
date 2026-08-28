@@ -66,16 +66,18 @@ public class AuthControllerTests
         var roleRepo = new RoleRepository(dbContext);
         var userRoleRepo = new UserRoleRepository(dbContext);
         var otpRepo = new OtpCodeRepository(dbContext);
+        var refreshTokenRepo = new RefreshTokenRepository(dbContext);
         var tokenService = new JwtTokenService(_jwtOptions);
         var notificationService = new AuthNotificationService(NullLogger<AuthNotificationService>.Instance);
 
         var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationService, tokenService, _otpOptions);
         var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
         var getCurrentUserUseCase = new GetCurrentUserUseCase(userRepo, userRoleRepo);
+        var logoutUseCase = new LogoutUseCase(refreshTokenRepo);
 
         var env = new TestHostEnvironment { EnvironmentName = environmentName };
 
-        var controller = new AuthController(sendOtpUseCase, verifyOtpUseCase, getCurrentUserUseCase, env)
+        var controller = new AuthController(sendOtpUseCase, verifyOtpUseCase, getCurrentUserUseCase, logoutUseCase, env)
         {
             ControllerContext = new ControllerContext
             {
@@ -336,6 +338,67 @@ public class AuthControllerTests
     public void GetCurrentUser_HasAuthorizeAttribute()
     {
         var methodInfo = typeof(AuthController).GetMethod(nameof(AuthController.GetCurrentUser));
+        var authorizeAttr = methodInfo?.GetCustomAttribute<AuthorizeAttribute>();
+        Assert.NotNull(authorizeAttr);
+    }
+
+    [Fact]
+    public async Task Logout_Authenticated_RevokesUserTokens_AndReturns204NoContent()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userId = Guid.NewGuid();
+        var refreshToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = "test_token_hash",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(7),
+            IsRevoked = false
+        };
+        await dbContext.RefreshTokens.AddAsync(refreshToken);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId.ToString())
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
+        };
+
+        // Act
+        var result = await controller.Logout(CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+
+        var updatedToken = await dbContext.RefreshTokens.FirstAsync(rt => rt.Id == refreshToken.Id);
+        Assert.NotNull(updatedToken.RevokedAtUtc);
+    }
+
+    [Fact]
+    public async Task Logout_Unauthenticated_Returns401Unauthorized()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var controller = CreateController(dbContext);
+
+        // Act
+        var result = await controller.Logout(CancellationToken.None);
+
+        // Assert
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public void Logout_HasAuthorizeAttribute()
+    {
+        var methodInfo = typeof(AuthController).GetMethod(nameof(AuthController.Logout));
         var authorizeAttr = methodInfo?.GetCustomAttribute<AuthorizeAttribute>();
         Assert.NotNull(authorizeAttr);
     }
