@@ -2,8 +2,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0-preview.1.25081.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.19" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.19">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0-preview.1.25081.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0-preview.1.25081.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -12,6 +12,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Application\AriaHR.Modules.Organization.Application.csproj" />
     <ProjectReference Include="..\Domain\AriaHR.Modules.Organization.Domain.csproj" />
+    <ProjectReference Include="..\..\Identity\Domain\AriaHR.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\Identity\Application\AriaHR.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\Identity\Infrastructure\AriaHR.Modules.Identity.Infrastructure.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
