@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
+using AriaHR.Modules.Organization.Application.UseCases.GetOrganizationsDashboardSummary;
+using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -15,13 +17,39 @@ public class OrganizationsController : ControllerBase
 {
     private readonly ICreateOrganizationUseCase _createOrganizationUseCase;
     private readonly IGetTotalOrganizationsCountUseCase _getTotalOrganizationsCountUseCase;
+    private readonly IGetOrganizationsDashboardSummaryUseCase _getOrganizationsDashboardSummaryUseCase;
+    private readonly IGetRecentOrganizationsUseCase _getRecentOrganizationsUseCase;
 
     public OrganizationsController(
         ICreateOrganizationUseCase createOrganizationUseCase,
-        IGetTotalOrganizationsCountUseCase getTotalOrganizationsCountUseCase)
+        IGetTotalOrganizationsCountUseCase getTotalOrganizationsCountUseCase,
+        IGetOrganizationsDashboardSummaryUseCase getOrganizationsDashboardSummaryUseCase,
+        IGetRecentOrganizationsUseCase getRecentOrganizationsUseCase)
     {
         _createOrganizationUseCase = createOrganizationUseCase ?? throw new ArgumentNullException(nameof(createOrganizationUseCase));
         _getTotalOrganizationsCountUseCase = getTotalOrganizationsCountUseCase ?? throw new ArgumentNullException(nameof(getTotalOrganizationsCountUseCase));
+        _getOrganizationsDashboardSummaryUseCase = getOrganizationsDashboardSummaryUseCase ?? throw new ArgumentNullException(nameof(getOrganizationsDashboardSummaryUseCase));
+        _getRecentOrganizationsUseCase = getRecentOrganizationsUseCase ?? throw new ArgumentNullException(nameof(getRecentOrganizationsUseCase));
+    }
+
+    [HttpGet("dashboard-summary")]
+    [ProducesResponseType(typeof(OrganizationsDashboardSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDashboardSummary(CancellationToken cancellationToken)
+    {
+        var result = await _getOrganizationsDashboardSummaryUseCase.ExecuteAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("recent")]
+    [ProducesResponseType(typeof(IEnumerable<RecentOrganizationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetRecent(CancellationToken cancellationToken)
+    {
+        var result = await _getRecentOrganizationsUseCase.ExecuteAsync(cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("count")]
