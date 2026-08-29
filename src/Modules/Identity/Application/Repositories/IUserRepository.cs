@@ -10,4 +10,5 @@ public interface IUserRepository
     Task<User?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default);
     Task AddAsync(User user, CancellationToken cancellationToken = default);
     Task UpdateAsync(User user, CancellationToken cancellationToken = default);
+    Task<int> GetCountByRoleNameAsync(string roleName, CancellationToken cancellationToken = default);
 }

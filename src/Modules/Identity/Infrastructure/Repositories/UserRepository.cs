@@ -49,4 +49,15 @@ public class UserRepository : IUserRepository
         _dbContext.Users.Update(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<int> GetCountByRoleNameAsync(string roleName, CancellationToken cancellationToken = default)
+    {
+        return await (from user in _dbContext.Users.AsNoTracking()
+                      join userRole in _dbContext.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
+                      join role in _dbContext.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                      where !user.IsDeleted && user.IsActive && role.Name == roleName
+                      select user.Id)
+                     .Distinct()
+                     .CountAsync(cancellationToken);
+    }
 }
