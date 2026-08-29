@@ -131,7 +131,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 FirstName = request.ManagerFirstName.Trim(),
                 LastName = request.ManagerLastName.Trim(),
                 PhoneNumber = normalizedMobile,
-                Email = null,
+                Email = request.ManagerEmail,
                 IsActive = true,
                 CreatedAtUtc = now,
                 CreatedByUserId = createdByUserId

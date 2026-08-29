@@ -18,6 +18,8 @@ public class Organization : BaseEntity
     public string? ManagerLastName { get; set; }
 
     public string? ManagerMobile { get; set; }
+
+    public string? ManagerEmail { get; set; }
     public bool IsActive { get; set; }
     public OrganizationType Type { get; set; }
 
