@@ -1,9 +1,7 @@
 using System.Security.Claims;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
-using AriaHR.Modules.Organization.Application.UseCases.GetOrganizationsDashboardSummary;
-using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
-using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
+using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -103,5 +101,17 @@ public class OrganizationsController : ControllerBase
                 Detail = ex.Message
             });
         }
+    }
+
+    [HttpGet("dashboard-summary")]
+    [ProducesResponseType(typeof(OrganizationsDashboardSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDashboardSummary(
+        [FromServices] IGetOrganizationsDashboardSummaryUseCase getDashboardSummaryUseCase,
+        CancellationToken cancellationToken)
+    {
+        var summary = await getDashboardSummaryUseCase.ExecuteAsync(cancellationToken);
+        return Ok(summary);
     }
 }
