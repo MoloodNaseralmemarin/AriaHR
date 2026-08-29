@@ -1,6 +1,6 @@
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
-using AriaHR.Modules.Organization.Application.UseCases.GetOrganizationsDashboardSummary;
+using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentActivities;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Domain.Entities;
@@ -24,33 +24,6 @@ public class DashboardApiTests
         return new OrganizationDbContext(options);
     }
 
-    [Fact]
-    public async Task DashboardSummary_WithMultipleOrganizations_CalculatesTotalAndCreatedThisMonthCorrectly()
-    {
-        // Arrange
-        using var dbContext = GetInMemoryDbContext();
-        var now = DateTime.UtcNow;
-        var lastMonth = now.AddMonths(-1);
-
-        dbContext.Organizations.AddRange(
-            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Org 1", Code = "O1", CreatedAtUtc = now, IsActive = true, IsDeleted = false },
-            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Org 2", Code = "O2", CreatedAtUtc = now, IsActive = false, IsDeleted = false }, // Inactive included
-            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Org 3", Code = "O3", CreatedAtUtc = lastMonth, IsActive = true, IsDeleted = false }, // Previous month
-            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Deleted Org", Code = "O4", CreatedAtUtc = now, IsActive = true, IsDeleted = true } // Deleted excluded
-        );
-        await dbContext.SaveChangesAsync();
-
-        var repository = new OrganizationRepository(dbContext);
-        var useCase = new GetOrganizationsDashboardSummaryUseCase(repository);
-
-        // Act
-        var result = await useCase.ExecuteAsync(CancellationToken.None);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(3, result.TotalCount);
-        Assert.Equal(2, result.CreatedThisMonth);
-    }
 
     [Fact]
     public async Task RecentOrganizations_ReturnsLatest3NonDeletedOrganizationsOrderedDescending()

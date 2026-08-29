@@ -2,10 +2,11 @@ using System.Reflection;
 using System.Security.Claims;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
+using AriaHR.Modules.Identity.Infrastructure.Repositories;
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
-using AriaHR.Modules.Organization.Application.UseCases.GetOrganizationsDashboardSummary;
+using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Domain.Entities;
@@ -189,7 +190,8 @@ public class OrganizationCreateTests
         var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
         var useCase = new CreateOrganizationUseCase(managerIdentityService);
         var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
-        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(repository);
+        var userRepo = new UserRepository(identityDb);
+        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(userRepo);
         var recentUseCase = new GetRecentOrganizationsUseCase(repository);
         var controller = new OrganizationsController(useCase, countUseCase, summaryUseCase, recentUseCase);
 
@@ -249,7 +251,8 @@ public class OrganizationCreateTests
         var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
         var useCase = new CreateOrganizationUseCase(managerIdentityService);
         var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
-        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(repository);
+        var userRepo = new UserRepository(identityDb);
+        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(userRepo);
         var recentUseCase = new GetRecentOrganizationsUseCase(repository);
         var controller = new OrganizationsController(useCase, countUseCase, summaryUseCase, recentUseCase);
 
@@ -295,7 +298,8 @@ public class OrganizationCreateTests
         var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
         var useCase = new CreateOrganizationUseCase(managerIdentityService);
         var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
-        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(repository);
+        var userRepo = new UserRepository(identityDb);
+        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(userRepo);
         var recentUseCase = new GetRecentOrganizationsUseCase(repository);
         var controller = new OrganizationsController(useCase, countUseCase, summaryUseCase, recentUseCase);
 
@@ -326,7 +330,8 @@ public class OrganizationCreateTests
         var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
         var useCase = new CreateOrganizationUseCase(managerIdentityService);
         var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
-        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(repository);
+        var userRepo = new UserRepository(identityDb);
+        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(userRepo);
         var recentUseCase = new GetRecentOrganizationsUseCase(repository);
         var controller = new OrganizationsController(useCase, countUseCase, summaryUseCase, recentUseCase);
 
