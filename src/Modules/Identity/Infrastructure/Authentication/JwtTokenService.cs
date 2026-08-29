@@ -47,7 +47,7 @@ public class JwtTokenService : ITokenService
             claims.Add(new Claim(ClaimTypes.Email, user.Email));
         }
 
-        if (user.OrganizationId.HasValue && user.OrganizationId.Value != Guid.Empty)
+        if (user.OrganizationId.HasValue)
         {
             claims.Add(new Claim("organization_id", user.OrganizationId.Value.ToString()));
         }

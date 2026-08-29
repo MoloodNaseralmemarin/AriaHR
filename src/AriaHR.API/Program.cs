@@ -1,15 +1,13 @@
 using System.Text;
 using AriaHR.Modules.Attendance.Infrastructure;
+using AriaHR.Modules.Identity.API;
 using AriaHR.Modules.Identity.Infrastructure;
-using AriaHR.Modules.Notification.Infrastructure;
 using AriaHR.Modules.Organization.API;
 using AriaHR.Modules.Organization.Infrastructure;
-using AriaHR.Modules.Payroll.Infrastructure;
-using AriaHR.Modules.Reporting.Infrastructure;
-using AriaHR.Modules.Requests.Infrastructure;
-using AriaHR.Modules.Scheduling.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,7 +16,46 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddIdentityApi();
 builder.Services.AddOrganizationApi();
-builder.Services.AddOpenApi();
+
+// OpenAPI & Bearer Authentication Configuration for Scalar API Reference
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        var scheme = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Enter JWT Bearer token"
+        };
+
+        var components = document.Components ??= new OpenApiComponents();
+        components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        components.SecuritySchemes["Bearer"] = scheme;
+
+        return Task.CompletedTask;
+    });
+
+    options.AddOperationTransformer((operation, context, cancellationToken) =>
+    {
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        var hasAuthorize = metadata.OfType<IAuthorizeData>().Any();
+        var hasAllowAnonymous = metadata.OfType<IAllowAnonymous>().Any();
+
+        if (hasAuthorize && !hasAllowAnonymous)
+        {
+            operation.Security ??= new List<OpenApiSecurityRequirement>();
+            var securityRequirement = new OpenApiSecurityRequirement();
+            var schemeRef = new OpenApiSecuritySchemeReference("Bearer", hostDocument: null, externalResource: null);
+            securityRequirement.Add(schemeRef, new List<string>());
+
+            operation.Security.Add(securityRequirement);
+        }
+
+        return Task.CompletedTask;
+    });
+});
 
 // Authentication & Authorization
 builder.Services.AddAuthentication(options =>
@@ -94,13 +131,15 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
-
 app.UseCors("Frontend");
+
+app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+await app.SeedIdentityAsync();
 
 app.Run();

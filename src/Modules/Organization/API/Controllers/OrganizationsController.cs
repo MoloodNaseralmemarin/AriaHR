@@ -14,27 +14,77 @@ namespace AriaHR.Modules.Organization.API.Controllers;
 public class OrganizationsController : ControllerBase
 {
     private readonly ICreateOrganizationUseCase _createOrganizationUseCase;
+    private readonly IGetTotalOrganizationsCountUseCase _getTotalOrganizationsCountUseCase;
+    private readonly IGetOrganizationsDashboardSummaryUseCase _getOrganizationsDashboardSummaryUseCase;
+    private readonly IGetRecentOrganizationsUseCase _getRecentOrganizationsUseCase;
 
-    public OrganizationsController(ICreateOrganizationUseCase createOrganizationUseCase)
+    public OrganizationsController(
+        ICreateOrganizationUseCase createOrganizationUseCase,
+        IGetTotalOrganizationsCountUseCase getTotalOrganizationsCountUseCase,
+        IGetOrganizationsDashboardSummaryUseCase getOrganizationsDashboardSummaryUseCase,
+        IGetRecentOrganizationsUseCase getRecentOrganizationsUseCase)
     {
         _createOrganizationUseCase = createOrganizationUseCase ?? throw new ArgumentNullException(nameof(createOrganizationUseCase));
+        _getTotalOrganizationsCountUseCase = getTotalOrganizationsCountUseCase ?? throw new ArgumentNullException(nameof(getTotalOrganizationsCountUseCase));
+        _getOrganizationsDashboardSummaryUseCase = getOrganizationsDashboardSummaryUseCase ?? throw new ArgumentNullException(nameof(getOrganizationsDashboardSummaryUseCase));
+        _getRecentOrganizationsUseCase = getRecentOrganizationsUseCase ?? throw new ArgumentNullException(nameof(getRecentOrganizationsUseCase));
+    }
+
+    [HttpGet("dashboard-summary")]
+    [ProducesResponseType(typeof(OrganizationsDashboardSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDashboardSummary(CancellationToken cancellationToken)
+    {
+        var result = await _getOrganizationsDashboardSummaryUseCase.ExecuteAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("recent")]
+    [ProducesResponseType(typeof(IEnumerable<RecentOrganizationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetRecent(CancellationToken cancellationToken)
+    {
+        var result = await _getRecentOrganizationsUseCase.ExecuteAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("count")]
+    [ProducesResponseType(typeof(OrganizationCountResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetCount(CancellationToken cancellationToken)
+    {
+        var result = await _getTotalOrganizationsCountUseCase.ExecuteAsync(cancellationToken);
+        return Ok(result);
     }
 
     [HttpPost]
     [ProducesResponseType(typeof(OrganizationDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Create(
         [FromBody] CreateOrganizationRequest request,
         CancellationToken cancellationToken)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                       ?? User.FindFirst("sub")?.Value;
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                       ?? User.FindFirstValue("sub");
 
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
             return Unauthorized();
+        }
+
+        if (request == null)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ورودی نامعتبر",
+                Detail = "درخواست ارسال شده معتبر نمی‌باشد."
+            });
         }
 
         try
@@ -44,7 +94,12 @@ public class OrganizationsController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ورودی نامعتبر",
+                Detail = ex.Message
+            });
         }
     }
 

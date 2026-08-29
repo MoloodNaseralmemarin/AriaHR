@@ -1,6 +1,7 @@
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Identity.Infrastructure.Seed;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -171,5 +172,42 @@ public class IdentitySeederTests
         // Assert
         Assert.Equal(2, usersRun2.Count);
         Assert.Equal(2, userRolesRun2.Count);
+    }
+
+    [Fact]
+    public async Task SeedAsync_Persists_Roles_With_Descriptions_In_Relational_Database()
+    {
+        // Arrange
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        using (var dbContext = new IdentityDbContext(options))
+        {
+            await dbContext.Database.EnsureCreatedAsync();
+            await IdentitySeeder.SeedAsync(dbContext);
+        }
+
+        // Act & Assert - Query using a separate DbContext instance
+        using (var dbContext = new IdentityDbContext(options))
+        {
+            var roles = await dbContext.Roles.AsNoTracking().ToListAsync();
+            Assert.Equal(3, roles.Count);
+
+            var systemAdmin = roles.FirstOrDefault(r => r.Name == "SystemAdmin");
+            Assert.NotNull(systemAdmin);
+            Assert.Equal("System Administrator", systemAdmin.Description);
+
+            var centerManager = roles.FirstOrDefault(r => r.Name == "CenterManager");
+            Assert.NotNull(centerManager);
+            Assert.Equal("Center Manager", centerManager.Description);
+
+            var employee = roles.FirstOrDefault(r => r.Name == "Employee");
+            Assert.NotNull(employee);
+            Assert.Equal("Employee", employee.Description);
+        }
     }
 }

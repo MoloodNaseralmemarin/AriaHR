@@ -1,7 +1,7 @@
 using AriaHR.Modules.Identity.API.Controllers;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AriaHR.Modules.Organization.API;
+namespace AriaHR.Modules.Identity.API;
 
 public static class DependencyInjection
 {

@@ -32,7 +32,6 @@ public class GetCurrentUserUseCase
             user.FirstName,
             user.LastName,
             user.PhoneNumber,
-            roleNames,
-            user.OrganizationId);
+            roleNames);
     }
 }
