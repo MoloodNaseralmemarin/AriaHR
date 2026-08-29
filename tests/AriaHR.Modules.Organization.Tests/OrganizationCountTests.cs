@@ -1,10 +1,12 @@
 using System.Reflection;
 using System.Security.Claims;
+using AriaHR.Modules.Identity.Infrastructure.Persistence;
+using AriaHR.Modules.Identity.Infrastructure.Repositories;
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.Services;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
-using AriaHR.Modules.Organization.Application.UseCases.GetOrganizationsDashboardSummary;
+using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Domain.Entities;
@@ -103,7 +105,9 @@ public class OrganizationCountTests
         var managerService = new DummyOrganizationManagerIdentityService();
         var createUseCase = new CreateOrganizationUseCase(managerService);
         var countUseCase = new GetTotalOrganizationsCountUseCase(repository);
-        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(repository);
+        var identityDb = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var userRepo = new UserRepository(identityDb);
+        var summaryUseCase = new GetOrganizationsDashboardSummaryUseCase(userRepo);
         var recentUseCase = new GetRecentOrganizationsUseCase(repository);
         var controller = new OrganizationsController(createUseCase, countUseCase, summaryUseCase, recentUseCase);
 
