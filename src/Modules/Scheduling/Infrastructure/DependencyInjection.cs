@@ -15,16 +15,19 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-        if (!string.IsNullOrWhiteSpace(connectionString))
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
-            services.AddDbContext<SchedulingDbContext>(options =>
-            {
-                options.UseSqlServer(connectionString, sqlOptions =>
-                {
-                    sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Scheduling");
-                });
-            });
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' was not configured.");
         }
+
+        services.AddDbContext<SchedulingDbContext>(options =>
+        {
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Scheduling");
+            });
+        });
 
         return services.AddSchedulingInfrastructure();
     }
