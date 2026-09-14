@@ -1,6 +1,7 @@
 using System.Text;
 using AriaHR.Modules.Attendance.Infrastructure;
 using AriaHR.Modules.Identity.API;
+using AriaHR.Modules.Scheduling.Infrastructure;
 using AriaHR.Modules.Identity.Infrastructure;
 using AriaHR.Modules.Organization.API;
 using AriaHR.Modules.Organization.Infrastructure;
@@ -117,6 +118,8 @@ builder.Services.AddIdentityModule(builder.Configuration);
 builder.Services.AddOrganizationModule(builder.Configuration);
 
 builder.Services.AddAttendanceModule(builder.Configuration);
+
+builder.Services.AddSchedulingModule(builder.Configuration);
 
 var app = builder.Build();
 
