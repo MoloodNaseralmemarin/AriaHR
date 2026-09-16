@@ -20,4 +20,5 @@ public interface IShiftAssignmentRepository
         Guid employeeId,
         DateOnly date,
         CancellationToken cancellationToken = default);
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
