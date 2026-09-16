@@ -44,4 +44,9 @@ public class ShiftRepository : IShiftRepository
         _dbContext.Shifts.Update(shift);
         return Task.CompletedTask;
     }
+
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

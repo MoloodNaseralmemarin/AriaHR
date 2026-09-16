@@ -28,6 +28,11 @@ public class User : BaseEntity
     public string? Email { get; set; }
 
     /// <summary>
+    /// Optional organization identifier for multi-tenancy context.
+    /// </summary>
+    public Guid? OrganizationId { get; set; }
+
+    /// <summary>
     /// Indicates whether the user is allowed to authenticate.
     /// </summary>
     public bool IsActive { get; set; }

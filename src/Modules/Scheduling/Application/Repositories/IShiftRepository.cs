@@ -9,4 +9,5 @@ public interface IShiftRepository
     Task<IReadOnlyList<Shift>> GetActiveShiftsByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken = default);
     Task<bool> ExistsByNameAsync(string name, Guid organizationId, CancellationToken cancellationToken = default);
     Task UpdateAsync(Shift shift, CancellationToken cancellationToken = default);
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

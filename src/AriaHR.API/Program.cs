@@ -1,6 +1,7 @@
 using System.Text;
 using AriaHR.Modules.Attendance.Infrastructure;
 using AriaHR.Modules.Identity.API;
+using AriaHR.Modules.Scheduling.API;
 using AriaHR.Modules.Scheduling.Infrastructure;
 using AriaHR.Modules.Identity.Infrastructure;
 using AriaHR.Modules.Organization.API;
@@ -17,6 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddIdentityApi();
 builder.Services.AddOrganizationApi();
+builder.Services.AddSchedulingApi();
 
 // OpenAPI & Bearer Authentication Configuration for Scalar API Reference
 builder.Services.AddOpenApi(options =>
