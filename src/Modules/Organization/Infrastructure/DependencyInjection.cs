@@ -2,6 +2,9 @@ using AriaHR.Modules.Organization.Application.Repositories;
 using AriaHR.Modules.Organization.Application.Services;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
 using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
+using AriaHR.Modules.Organization.Application.UseCases.GetRecentActivities;
+using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
+using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
 using AriaHR.Modules.Organization.Infrastructure.Services;
@@ -37,6 +40,9 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationManagerIdentityService, OrganizationManagerIdentityService>();
         services.AddScoped<ICreateOrganizationUseCase, CreateOrganizationUseCase>();
         services.AddScoped<IGetOrganizationsDashboardSummaryUseCase, GetOrganizationsDashboardSummaryUseCase>();
+        services.AddScoped<IGetTotalOrganizationsCountUseCase, GetTotalOrganizationsCountUseCase>();
+        services.AddScoped<IGetRecentOrganizationsUseCase, GetRecentOrganizationsUseCase>();
+        services.AddScoped<IGetRecentActivitiesUseCase, GetRecentActivitiesUseCase>();
 
         return services;
     }
