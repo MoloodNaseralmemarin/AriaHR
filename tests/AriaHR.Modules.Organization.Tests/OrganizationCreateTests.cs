@@ -102,6 +102,7 @@ public class OrganizationCreateTests
         Assert.Equal("Ali", dbUser.FirstName);
         Assert.Equal("Ahmadi", dbUser.LastName);
         Assert.Equal("09123456789", dbUser.PhoneNumber);
+        Assert.Equal(result.Id, dbUser.OrganizationId);
         Assert.Null(dbUser.Email);
         Assert.True(dbUser.IsActive);
 

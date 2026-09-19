@@ -8,5 +8,6 @@ public interface IGetEmployeeShiftCalendarUseCase
         Guid employeeId,
         DateOnly startDate,
         DateOnly endDate,
+        Guid organizationId = default,
         CancellationToken cancellationToken = default);
 }

@@ -1,8 +1,8 @@
-using System.Security.Claims;
 using AriaHR.Modules.Scheduling.Application.DTOs;
 using AriaHR.Modules.Scheduling.Application.UseCases.AssignShift;
 using AriaHR.Modules.Scheduling.Application.UseCases.GetEmployeeShiftCalendar;
 using AriaHR.Modules.Scheduling.Application.UseCases.GetShiftCalendar;
+using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,15 +17,18 @@ public class ShiftAssignmentsController : ControllerBase
     private readonly IAssignShiftUseCase _assignShiftUseCase;
     private readonly IGetShiftCalendarUseCase _getShiftCalendarUseCase;
     private readonly IGetEmployeeShiftCalendarUseCase _getEmployeeShiftCalendarUseCase;
+    private readonly ICurrentUserService _currentUserService;
 
     public ShiftAssignmentsController(
         IAssignShiftUseCase assignShiftUseCase,
         IGetShiftCalendarUseCase getShiftCalendarUseCase,
-        IGetEmployeeShiftCalendarUseCase getEmployeeShiftCalendarUseCase)
+        IGetEmployeeShiftCalendarUseCase getEmployeeShiftCalendarUseCase,
+        ICurrentUserService currentUserService)
     {
         _assignShiftUseCase = assignShiftUseCase ?? throw new ArgumentNullException(nameof(assignShiftUseCase));
         _getShiftCalendarUseCase = getShiftCalendarUseCase ?? throw new ArgumentNullException(nameof(getShiftCalendarUseCase));
         _getEmployeeShiftCalendarUseCase = getEmployeeShiftCalendarUseCase ?? throw new ArgumentNullException(nameof(getEmployeeShiftCalendarUseCase));
+        _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
     }
 
     [HttpPost]
@@ -48,13 +51,13 @@ public class ShiftAssignmentsController : ControllerBase
             });
         }
 
-        Guid userId = GetCurrentUserId();
+        Guid userId = _currentUserService.UserId;
         if (userId == Guid.Empty)
         {
             return Unauthorized();
         }
 
-        Guid orgId = GetOrganizationId(request.OrganizationId);
+        Guid orgId = _currentUserService.ResolveOrganizationId(request.OrganizationId);
         if (orgId == Guid.Empty)
         {
             return BadRequest(new ProblemDetails
@@ -97,16 +100,17 @@ public class ShiftAssignmentsController : ControllerBase
     public async Task<IActionResult> GetCalendar(
         [FromQuery] DateOnly startDate,
         [FromQuery] DateOnly endDate,
+        [FromQuery] Guid? organizationId,
         CancellationToken cancellationToken)
     {
-        Guid orgId = GetOrganizationId(null);
+        Guid orgId = _currentUserService.ResolveOrganizationId(organizationId);
         if (orgId == Guid.Empty)
         {
             return BadRequest(new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,
                 Title = "سازمان مشخص نشده است",
-                Detail = "شناسه سازمان معتبر در توکن یافت نشد."
+                Detail = "شناسه سازمان معتبر در توکن یا درخواست یافت نشد."
             });
         }
 
@@ -136,9 +140,11 @@ public class ShiftAssignmentsController : ControllerBase
         [FromQuery] DateOnly endDate,
         CancellationToken cancellationToken)
     {
+        Guid userOrgId = _currentUserService.IsInRole("SystemAdmin") ? Guid.Empty : (_currentUserService.OrganizationId ?? Guid.Empty);
+
         try
         {
-            var result = await _getEmployeeShiftCalendarUseCase.ExecuteAsync(employeeId, startDate, endDate, cancellationToken);
+            var result = await _getEmployeeShiftCalendarUseCase.ExecuteAsync(employeeId, startDate, endDate, userOrgId, cancellationToken);
             return Ok(result);
         }
         catch (ArgumentException ex)
@@ -150,32 +156,5 @@ public class ShiftAssignmentsController : ControllerBase
                 Detail = ex.Message
             });
         }
-    }
-
-    private Guid GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
-        {
-            return userId;
-        }
-
-        return Guid.Empty;
-    }
-
-    private Guid GetOrganizationId(Guid? requestOrgId)
-    {
-        var orgClaim = User.FindFirstValue("organization_id");
-        if (!string.IsNullOrEmpty(orgClaim) && Guid.TryParse(orgClaim, out var claimOrgId))
-        {
-            return claimOrgId;
-        }
-
-        if (User.IsInRole("SystemAdmin") && requestOrgId.HasValue && requestOrgId.Value != Guid.Empty)
-        {
-            return requestOrgId.Value;
-        }
-
-        return Guid.Empty;
     }
 }

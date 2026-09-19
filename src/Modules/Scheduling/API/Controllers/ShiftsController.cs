@@ -1,8 +1,8 @@
-using System.Security.Claims;
 using AriaHR.Modules.Scheduling.Application.DTOs;
 using AriaHR.Modules.Scheduling.Application.UseCases.DefineShift;
 using AriaHR.Modules.Scheduling.Application.UseCases.GetActiveShifts;
 using AriaHR.Modules.Scheduling.Application.UseCases.GetShiftById;
+using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,15 +17,18 @@ public class ShiftsController : ControllerBase
     private readonly IDefineShiftUseCase _defineShiftUseCase;
     private readonly IGetActiveShiftsUseCase _getActiveShiftsUseCase;
     private readonly IGetShiftByIdUseCase _getShiftByIdUseCase;
+    private readonly ICurrentUserService _currentUserService;
 
     public ShiftsController(
         IDefineShiftUseCase defineShiftUseCase,
         IGetActiveShiftsUseCase getActiveShiftsUseCase,
-        IGetShiftByIdUseCase getShiftByIdUseCase)
+        IGetShiftByIdUseCase getShiftByIdUseCase,
+        ICurrentUserService currentUserService)
     {
         _defineShiftUseCase = defineShiftUseCase ?? throw new ArgumentNullException(nameof(defineShiftUseCase));
         _getActiveShiftsUseCase = getActiveShiftsUseCase ?? throw new ArgumentNullException(nameof(getActiveShiftsUseCase));
         _getShiftByIdUseCase = getShiftByIdUseCase ?? throw new ArgumentNullException(nameof(getShiftByIdUseCase));
+        _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
     }
 
     [HttpPost]
@@ -47,7 +50,7 @@ public class ShiftsController : ControllerBase
             });
         }
 
-        Guid orgId = GetOrganizationId(request.OrganizationId);
+        Guid orgId = _currentUserService.ResolveOrganizationId(request.OrganizationId);
         if (orgId == Guid.Empty)
         {
             return BadRequest(new ProblemDetails
@@ -88,16 +91,18 @@ public class ShiftsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetActiveShifts(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetActiveShifts(
+        [FromQuery] Guid? organizationId,
+        CancellationToken cancellationToken)
     {
-        Guid orgId = GetOrganizationId(null);
+        Guid orgId = _currentUserService.ResolveOrganizationId(organizationId);
         if (orgId == Guid.Empty)
         {
             return BadRequest(new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,
                 Title = "سازمان مشخص نشده است",
-                Detail = "شناسه سازمان معتبر در توکن یافت نشد."
+                Detail = "شناسه سازمان معتبر در توکن یا درخواست یافت نشد."
             });
         }
 
@@ -112,7 +117,7 @@ public class ShiftsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetShiftById(Guid id, CancellationToken cancellationToken)
     {
-        Guid orgId = GetOrganizationId(null);
+        Guid orgId = _currentUserService.ResolveOrganizationId(null);
         var result = await _getShiftByIdUseCase.ExecuteAsync(id, orgId, cancellationToken);
         if (result == null)
         {
@@ -125,21 +130,5 @@ public class ShiftsController : ControllerBase
         }
 
         return Ok(result);
-    }
-
-    private Guid GetOrganizationId(Guid? requestOrgId)
-    {
-        var orgClaim = User.FindFirstValue("organization_id");
-        if (!string.IsNullOrEmpty(orgClaim) && Guid.TryParse(orgClaim, out var claimOrgId))
-        {
-            return claimOrgId;
-        }
-
-        if (User.IsInRole("SystemAdmin") && requestOrgId.HasValue && requestOrgId.Value != Guid.Empty)
-        {
-            return requestOrgId.Value;
-        }
-
-        return Guid.Empty;
     }
 }
