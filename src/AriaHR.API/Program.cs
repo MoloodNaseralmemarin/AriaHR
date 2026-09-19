@@ -15,6 +15,8 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<AriaHR.Shared.Services.ICurrentUserService, AriaHR.Shared.Services.CurrentUserService>();
 builder.Services.AddControllers();
 builder.Services.AddIdentityApi();
 builder.Services.AddOrganizationApi();

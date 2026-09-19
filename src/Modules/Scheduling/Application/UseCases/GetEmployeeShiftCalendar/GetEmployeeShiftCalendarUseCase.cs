@@ -16,6 +16,7 @@ public class GetEmployeeShiftCalendarUseCase : IGetEmployeeShiftCalendarUseCase
         Guid employeeId,
         DateOnly startDate,
         DateOnly endDate,
+        Guid organizationId = default,
         CancellationToken cancellationToken = default)
     {
         if (employeeId == Guid.Empty)
@@ -30,6 +31,11 @@ public class GetEmployeeShiftCalendarUseCase : IGetEmployeeShiftCalendarUseCase
 
         var assignments = await _shiftAssignmentRepository.GetByEmployeeAndDateRangeAsync(
             employeeId, startDate, endDate, cancellationToken);
+
+        if (organizationId != Guid.Empty)
+        {
+            assignments = assignments.Where(a => a.OrganizationId == organizationId).ToList();
+        }
 
         return assignments.Select(a => new ShiftAssignmentDto(
             a.Id,
