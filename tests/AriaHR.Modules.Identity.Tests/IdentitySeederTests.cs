@@ -210,4 +210,77 @@ public class IdentitySeederTests
             Assert.Equal("Employee", employee.Description);
         }
     }
+
+    [Fact]
+    public async Task SeedAsync_Creates_Configured_SeedUsers_With_OrganizationId()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var expectedOrgId = Guid.NewGuid();
+
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            {"Identity:SeedUsers:0:FirstName", "Center"},
+            {"Identity:SeedUsers:0:LastName", "Manager"},
+            {"Identity:SeedUsers:0:PhoneNumber", "09121111111"},
+            {"Identity:SeedUsers:0:Role", "CenterManager"},
+            {"Identity:SeedUsers:0:OrganizationId", expectedOrgId.ToString()}
+        };
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings)
+            .Build();
+
+        // Act
+        await IdentitySeeder.SeedAsync(dbContext, configuration);
+
+        // Assert
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.PhoneNumber == "09121111111");
+        Assert.NotNull(user);
+        Assert.Equal(expectedOrgId, user.OrganizationId);
+
+        var centerManagerRole = await dbContext.Roles.FirstAsync(r => r.Name == "CenterManager");
+        var userRole = await dbContext.UserRoles.FirstOrDefaultAsync(ur => ur.UserId == user.Id && ur.RoleId == centerManagerRole.Id);
+        Assert.NotNull(userRole);
+    }
+
+    [Fact]
+    public async Task SeedAsync_Updates_Existing_User_OrganizationId_When_Configured()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var initialUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Center",
+            LastName = "Manager",
+            PhoneNumber = "09122222222",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            OrganizationId = null
+        };
+        await dbContext.Users.AddAsync(initialUser);
+        await dbContext.SaveChangesAsync();
+
+        var updatedOrgId = Guid.NewGuid();
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            {"Identity:SeedUsers:0:FirstName", "Center"},
+            {"Identity:SeedUsers:0:LastName", "Manager"},
+            {"Identity:SeedUsers:0:PhoneNumber", "09122222222"},
+            {"Identity:SeedUsers:0:Role", "CenterManager"},
+            {"Identity:SeedUsers:0:OrganizationId", updatedOrgId.ToString()}
+        };
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings)
+            .Build();
+
+        // Act
+        await IdentitySeeder.SeedAsync(dbContext, configuration);
+
+        // Assert
+        var user = await dbContext.Users.FirstAsync(u => u.Id == initialUser.Id);
+        Assert.Equal(updatedOrgId, user.OrganizationId);
+    }
 }
