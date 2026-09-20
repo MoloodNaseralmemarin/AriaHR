@@ -164,11 +164,17 @@ public static class IdentitySeeder
                     LastName = userConfig.LastName,
                     PhoneNumber = normalizedMobile,
                     Email = string.Empty,
+                    OrganizationId = userConfig.OrganizationId,
                     IsActive = true,
                     CreatedAtUtc = now
                 };
 
                 await dbContext.Users.AddAsync(existingUser, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            else if (userConfig.OrganizationId.HasValue && existingUser.OrganizationId != userConfig.OrganizationId)
+            {
+                existingUser.OrganizationId = userConfig.OrganizationId;
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
 
