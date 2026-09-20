@@ -1,4 +1,5 @@
 using System.Text;
+using AriaHR.Shared.Converters;
 using AriaHR.Modules.Attendance.Infrastructure;
 using AriaHR.Modules.Identity.API;
 using AriaHR.Modules.Scheduling.API;
@@ -17,7 +18,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AriaHR.Shared.Services.ICurrentUserService, AriaHR.Shared.Services.CurrentUserService>();
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+});
 builder.Services.AddIdentityApi();
 builder.Services.AddOrganizationApi();
 builder.Services.AddSchedulingApi();
