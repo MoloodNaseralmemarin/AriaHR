@@ -84,6 +84,46 @@ public class ShiftsControllerOrganizationIsolationTests
     }
 
     [Fact]
+    public async Task DefineShift_CenterManager_OmittedOrganizationId_SuccessfullyCreatesShiftForAssignedOrganization()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var centerManagerOrgId = Guid.NewGuid();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Role, "CenterManager"),
+            new Claim("organization_id", centerManagerOrgId.ToString())
+        };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var controller = CreateController(dbContext, principal);
+
+        var request = new DefineShiftRequest(
+            Name: "Morning Shift",
+            StartTime: new TimeOnly(8, 0),
+            EndTime: new TimeOnly(16, 0),
+            OrganizationId: null
+        );
+
+        // Act
+        var result = await controller.DefineShift(request, CancellationToken.None);
+
+        // Assert
+        var createdResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status201Created, createdResult.StatusCode);
+
+        var shiftDto = Assert.IsType<ShiftDto>(createdResult.Value);
+        Assert.Equal(centerManagerOrgId, shiftDto.OrganizationId);
+        Assert.Equal("Morning Shift", shiftDto.Name);
+
+        var shiftEntity = await dbContext.Shifts.FirstOrDefaultAsync(s => s.Id == shiftDto.Id);
+        Assert.NotNull(shiftEntity);
+        Assert.Equal(centerManagerOrgId, shiftEntity.OrganizationId);
+    }
+
+    [Fact]
     public async Task DefineShift_CenterManager_SuccessfullyCreatesShiftForAssignedOrganization()
     {
         // Arrange
@@ -121,6 +161,37 @@ public class ShiftsControllerOrganizationIsolationTests
         var shiftEntity = await dbContext.Shifts.FirstOrDefaultAsync(s => s.Id == shiftDto.Id);
         Assert.NotNull(shiftEntity);
         Assert.Equal(centerManagerOrgId, shiftEntity.OrganizationId);
+    }
+
+    [Fact]
+    public async Task DefineShift_CenterManager_MissingOrganizationClaim_ReturnsBadRequest()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Role, "CenterManager")
+        };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var controller = CreateController(dbContext, principal);
+
+        var request = new DefineShiftRequest(
+            Name: "Morning Shift",
+            StartTime: new TimeOnly(8, 0),
+            EndTime: new TimeOnly(16, 0)
+        );
+
+        // Act
+        var result = await controller.DefineShift(request, CancellationToken.None);
+
+        // Assert
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
+        var problemDetails = Assert.IsType<ProblemDetails>(badRequestResult.Value);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
+        Assert.Equal("سازمان مشخص نشده است", problemDetails.Title);
     }
 
     [Fact]
