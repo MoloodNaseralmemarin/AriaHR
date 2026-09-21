@@ -84,16 +84,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
 
         try
         {
-            // 1. Check whether a user with the same manager mobile already exists
-            bool existingUserWithMobile = await _identityDbContext.Users
-                .AnyAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
-
-            if (existingUserWithMobile)
-            {
-                throw new ArgumentException("A user with this mobile number already exists.", nameof(request.ManagerMobile));
-            }
-
-            // 2. Resolve CenterManager role
+            // 1. Resolve CenterManager role
             var centerManagerRole = await _identityDbContext.Roles
                 .FirstOrDefaultAsync(r => r.Name == "CenterManager", cancellationToken);
 
@@ -102,10 +93,21 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 throw new InvalidOperationException("Role 'CenterManager' does not exist in the database.");
             }
 
+            // 2. Find existing user with manager mobile and validate Case C before creating Organization
+            var existingUser = await _identityDbContext.Users
+                .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
+
+            var orgId = Guid.NewGuid();
+
+            if (existingUser != null && existingUser.OrganizationId.HasValue && existingUser.OrganizationId.Value != orgId)
+            {
+                throw new ArgumentException("A user with this mobile number is already assigned to another organization.", nameof(request.ManagerMobile));
+            }
+
             // 3. Create Organization
             var organization = new Domain.Entities.Organization
             {
-                Id = Guid.NewGuid(),
+                Id = orgId,
                 Name = request.Name.Trim(),
                 Code = request.Code.Trim(),
                 Type = request.Type,
@@ -123,34 +125,81 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
             await _organizationDbContext.Organizations.AddAsync(organization, cancellationToken);
             await _organizationDbContext.SaveChangesAsync(cancellationToken);
 
-            // 4. Create User using Manager information
             var now = DateTime.UtcNow;
-            var user = new User
+
+            if (existingUser != null)
             {
-                Id = Guid.NewGuid(),
-                FirstName = request.ManagerFirstName.Trim(),
-                LastName = request.ManagerLastName.Trim(),
-                PhoneNumber = normalizedMobile,
-                Email = request.ManagerEmail,
-                OrganizationId = organization.Id,
-                IsActive = true,
-                CreatedAtUtc = now,
-                CreatedByUserId = createdByUserId
-            };
 
-            await _identityDbContext.Users.AddAsync(user, cancellationToken);
+                // Case A & B: User has no organization or belongs to this organization
+                if (!existingUser.OrganizationId.HasValue)
+                {
+                    existingUser.OrganizationId = organization.Id;
+                }
 
-            // 5. Create UserRole with CenterManager role
-            var userRole = new UserRole
+                if (!string.IsNullOrWhiteSpace(request.ManagerFirstName))
+                {
+                    existingUser.FirstName = request.ManagerFirstName.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.ManagerLastName))
+                {
+                    existingUser.LastName = request.ManagerLastName.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.ManagerEmail))
+                {
+                    existingUser.Email = request.ManagerEmail.Trim();
+                }
+
+                existingUser.IsActive = true;
+
+                // Ensure CenterManager role is assigned
+                bool hasRole = await _identityDbContext.UserRoles
+                    .AnyAsync(ur => ur.UserId == existingUser.Id && ur.RoleId == centerManagerRole.Id, cancellationToken);
+
+                if (!hasRole)
+                {
+                    var userRole = new UserRole
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = existingUser.Id,
+                        RoleId = centerManagerRole.Id,
+                        CreatedAtUtc = now,
+                        CreatedByUserId = createdByUserId
+                    };
+
+                    await _identityDbContext.UserRoles.AddAsync(userRole, cancellationToken);
+                }
+            }
+            else
             {
-                Id = Guid.NewGuid(),
-                UserId = user.Id,
-                RoleId = centerManagerRole.Id,
-                CreatedAtUtc = now,
-                CreatedByUserId = createdByUserId
-            };
+                // Create new User using Manager information
+                var user = new User
+                {
+                    Id = Guid.NewGuid(),
+                    FirstName = request.ManagerFirstName.Trim(),
+                    LastName = request.ManagerLastName.Trim(),
+                    PhoneNumber = normalizedMobile,
+                    Email = request.ManagerEmail,
+                    OrganizationId = organization.Id,
+                    IsActive = true,
+                    CreatedAtUtc = now,
+                    CreatedByUserId = createdByUserId
+                };
 
-            await _identityDbContext.UserRoles.AddAsync(userRole, cancellationToken);
+                await _identityDbContext.Users.AddAsync(user, cancellationToken);
+
+                var userRole = new UserRole
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = user.Id,
+                    RoleId = centerManagerRole.Id,
+                    CreatedAtUtc = now,
+                    CreatedByUserId = createdByUserId
+                };
+
+                await _identityDbContext.UserRoles.AddAsync(userRole, cancellationToken);
+            }
 
             await _identityDbContext.SaveChangesAsync(cancellationToken);
 

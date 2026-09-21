@@ -50,9 +50,9 @@ public class ShiftsControllerOrganizationIsolationTests
     }
 
     [Fact]
-    public async Task DefineShift_CenterManager_AutomaticallyUsesUserOrganizationId_IgnoringMismatchedRequestBodyOrgId()
+    public async Task DefineShift_CenterManager_MismatchedRequestBodyOrgId_Returns403Forbidden()
     {
-        // Arrange
+        // Arrange (Test 8: Organization Tampering)
         using var dbContext = CreateDbContext();
         var centerManagerOrgId = Guid.NewGuid();
         var attemptOtherOrgId = Guid.NewGuid();
@@ -78,9 +78,8 @@ public class ShiftsControllerOrganizationIsolationTests
         var result = await controller.DefineShift(request, CancellationToken.None);
 
         // Assert
-        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
-        var problemDetails = Assert.IsType<ProblemDetails>(badRequestResult.Value);
-        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
+        Assert.IsType<ForbidResult>(result);
+        Assert.Empty(dbContext.Shifts); // No shift was created for Organization B
     }
 
     [Fact]
@@ -164,9 +163,9 @@ public class ShiftsControllerOrganizationIsolationTests
     }
 
     [Fact]
-    public async Task DefineShift_CenterManager_MissingOrganizationClaim_ReturnsBadRequest()
+    public async Task DefineShift_CenterManager_MissingOrganizationClaim_Returns403Forbidden()
     {
-        // Arrange
+        // Arrange (Test 9 & 10: CenterManager without organization / missing JWT claim)
         using var dbContext = CreateDbContext();
 
         var claims = new[]
@@ -188,10 +187,7 @@ public class ShiftsControllerOrganizationIsolationTests
         var result = await controller.DefineShift(request, CancellationToken.None);
 
         // Assert
-        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
-        var problemDetails = Assert.IsType<ProblemDetails>(badRequestResult.Value);
-        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
-        Assert.Equal("سازمان مشخص نشده است", problemDetails.Title);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]

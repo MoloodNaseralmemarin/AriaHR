@@ -50,6 +50,20 @@ public class ShiftsController : ControllerBase
             });
         }
 
+        if (!_currentUserService.IsInRole("SystemAdmin"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
+            {
+                return Forbid();
+            }
+
+            if (request.OrganizationId.HasValue && request.OrganizationId.Value != Guid.Empty && request.OrganizationId.Value != userOrgId.Value)
+            {
+                return Forbid();
+            }
+        }
+
         Guid orgId = _currentUserService.ResolveOrganizationId(request.OrganizationId);
         if (orgId == Guid.Empty)
         {
@@ -95,6 +109,20 @@ public class ShiftsController : ControllerBase
         [FromQuery] Guid? organizationId,
         CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsInRole("SystemAdmin"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
+            {
+                return Forbid();
+            }
+
+            if (organizationId.HasValue && organizationId.Value != Guid.Empty && organizationId.Value != userOrgId.Value)
+            {
+                return Forbid();
+            }
+        }
+
         Guid orgId = _currentUserService.ResolveOrganizationId(organizationId);
         if (orgId == Guid.Empty)
         {
@@ -117,6 +145,15 @@ public class ShiftsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetShiftById(Guid id, CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsInRole("SystemAdmin"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
+            {
+                return Forbid();
+            }
+        }
+
         Guid orgId = _currentUserService.ResolveOrganizationId(null);
         var result = await _getShiftByIdUseCase.ExecuteAsync(id, orgId, cancellationToken);
         if (result == null)
