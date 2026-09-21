@@ -17,5 +17,4 @@ public class Branch : BaseEntity
     public bool IsActive { get; set; }
 
     public ICollection<WorkLocation> WorkLocations { get; set; } = new List<WorkLocation>();
-    public ICollection<Employee> Employees { get; set; } = new List<Employee>();
 }

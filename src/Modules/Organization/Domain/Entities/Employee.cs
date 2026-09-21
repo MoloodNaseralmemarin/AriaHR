@@ -16,9 +16,6 @@ public class Employee : BaseEntity
     public Guid OrganizationId { get; set; }
     public Organization? Organization { get; set; }
 
-    public Guid BranchId { get; set; }
-    public Branch? Branch { get; set; }
-
     public string PersonnelCode { get; set; } = string.Empty;
 
     public string NationalCode { get; set; } = string.Empty;
@@ -28,15 +25,6 @@ public class Employee : BaseEntity
     public string? Gender { get; set; }
 
     public DateOnly HireDate { get; set; }
-
-    public Guid DepartmentId { get; set; }
-    public Department? Department { get; set; }
-
-    public Guid PositionId { get; set; }
-    public Position? Position { get; set; }
-
-    public Guid? ManagerId { get; set; }
-    public Employee? Manager { get; set; }
 
     public bool IsActive { get; set; }
 

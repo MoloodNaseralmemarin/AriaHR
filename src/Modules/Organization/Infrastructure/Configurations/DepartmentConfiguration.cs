@@ -20,15 +20,5 @@ public sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departmen
             .WithMany(x => x.SubDepartments)
             .HasForeignKey(x => x.ParentDepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne(x => x.Manager)
-            .WithMany()
-            .HasForeignKey(x => x.ManagerId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasMany(x => x.Employees)
-            .WithOne(x => x.Department)
-            .HasForeignKey(x => x.DepartmentId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }
