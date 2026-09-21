@@ -20,10 +20,5 @@ public sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
             .WithOne(x => x.Branch)
             .HasForeignKey(x => x.BranchId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasMany(x => x.Employees)
-            .WithOne(x => x.Branch)
-            .HasForeignKey(x => x.BranchId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

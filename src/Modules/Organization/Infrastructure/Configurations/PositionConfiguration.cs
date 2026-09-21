@@ -15,10 +15,5 @@ public sealed class PositionConfiguration : IEntityTypeConfiguration<Position>
 
         builder.Property(x => x.Code)
             .IsRequired();
-
-        builder.HasMany(x => x.Employees)
-            .WithOne(x => x.Position)
-            .HasForeignKey(x => x.PositionId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

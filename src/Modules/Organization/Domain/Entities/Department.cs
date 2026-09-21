@@ -16,10 +16,5 @@ public class Department : BaseEntity
     public Department? ParentDepartment { get; set; }
     public ICollection<Department> SubDepartments { get; set; } = new List<Department>();
 
-    public Guid? ManagerId { get; set; }
-    public Employee? Manager { get; set; }
-
     public bool IsActive { get; set; }
-
-    public ICollection<Employee> Employees { get; set; } = new List<Employee>();
 }

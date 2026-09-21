@@ -13,10 +13,7 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(x => x.PersonnelCode)
             .IsRequired();
 
-
-        builder.HasOne(x => x.Manager)
-            .WithMany()
-            .HasForeignKey(x => x.ManagerId)
-            .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(x => x.NationalCode)
+            .IsRequired();
     }
 }
