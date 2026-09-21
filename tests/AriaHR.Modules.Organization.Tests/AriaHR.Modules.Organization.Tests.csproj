@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Modules\Organization\Infrastructure\AriaHR.Modules.Organization.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Modules\Organization\API\AriaHR.Modules.Organization.API.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\Infrastructure\AriaHR.Modules.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\AriaHR.API\AriaHR.API.csproj" />
   </ItemGroup>
 
 </Project>

@@ -57,6 +57,20 @@ public class ShiftAssignmentsController : ControllerBase
             return Unauthorized();
         }
 
+        if (!_currentUserService.IsInRole("SystemAdmin"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
+            {
+                return Forbid();
+            }
+
+            if (request.OrganizationId.HasValue && request.OrganizationId.Value != Guid.Empty && request.OrganizationId.Value != userOrgId.Value)
+            {
+                return Forbid();
+            }
+        }
+
         Guid orgId = _currentUserService.ResolveOrganizationId(request.OrganizationId);
         if (orgId == Guid.Empty)
         {
@@ -103,6 +117,20 @@ public class ShiftAssignmentsController : ControllerBase
         [FromQuery] Guid? organizationId,
         CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsInRole("SystemAdmin"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
+            {
+                return Forbid();
+            }
+
+            if (organizationId.HasValue && organizationId.Value != Guid.Empty && organizationId.Value != userOrgId.Value)
+            {
+                return Forbid();
+            }
+        }
+
         Guid orgId = _currentUserService.ResolveOrganizationId(organizationId);
         if (orgId == Guid.Empty)
         {
@@ -140,6 +168,15 @@ public class ShiftAssignmentsController : ControllerBase
         [FromQuery] DateOnly endDate,
         CancellationToken cancellationToken)
     {
+        if (!_currentUserService.IsInRole("SystemAdmin"))
+        {
+            var userOrg = _currentUserService.OrganizationId;
+            if (!userOrg.HasValue || userOrg.Value == Guid.Empty)
+            {
+                return Forbid();
+            }
+        }
+
         Guid userOrgId = _currentUserService.IsInRole("SystemAdmin") ? Guid.Empty : (_currentUserService.OrganizationId ?? Guid.Empty);
 
         try

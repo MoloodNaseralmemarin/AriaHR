@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
+using AriaHR.API.DataRepair;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -152,5 +153,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 await app.SeedIdentityAsync();
+await app.RepairUnlinkedCenterManagersAsync();
 
 app.Run();

@@ -9,8 +9,9 @@ using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
 using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
-using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
+using OrganizationEntity = AriaHR.Modules.Organization.Domain.Entities.Organization;
+using OrganizationType = AriaHR.Modules.Organization.Domain.Entities.OrganizationType;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
 using AriaHR.Modules.Organization.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -117,17 +118,18 @@ public class OrganizationCreateTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithDuplicateManagerMobile_ThrowsArgumentExceptionAndCreatesNothing()
+    public async Task ExecuteAsync_WithExistingUserNoOrganization_AttachesUserToOrganization()
     {
-        // Arrange
+        // Arrange (Test 2: Existing User Without Organization)
         var (orgDb, identityDb) = GetInMemoryDbContexts();
 
         var existingUser = new User
         {
             Id = Guid.NewGuid(),
-            FirstName = "Existing",
+            FirstName = "Unassigned",
             LastName = "User",
             PhoneNumber = "09123456789",
+            OrganizationId = null,
             IsActive = true
         };
         identityDb.Users.Add(existingUser);
@@ -138,8 +140,57 @@ public class OrganizationCreateTests
 
         var request = new CreateOrganizationRequest
         {
-            Name = "Duplicate Mobile Center",
-            Code = "DUP-001",
+            Name = "New Center",
+            Code = "NC-001",
+            Type = OrganizationType.Clinic,
+            ManagerFirstName = "UpdatedFirstName",
+            ManagerLastName = "UpdatedLastName",
+            ManagerMobile = "09123456789"
+        };
+
+        // Act
+        var result = await useCase.ExecuteAsync(request, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Single(identityDb.Users); // No duplicate user created
+        var dbUser = await identityDb.Users.FirstAsync();
+        Assert.Equal(result.Id, dbUser.OrganizationId);
+        Assert.Equal("UpdatedFirstName", dbUser.FirstName);
+        Assert.Equal("UpdatedLastName", dbUser.LastName);
+
+        var centerManagerRole = await identityDb.Roles.FirstAsync(r => r.Name == "CenterManager");
+        var userRole = await identityDb.UserRoles.FirstOrDefaultAsync(ur => ur.UserId == dbUser.Id && ur.RoleId == centerManagerRole.Id);
+        Assert.NotNull(userRole);
+    }
+
+
+    [Fact]
+    public async Task ExecuteAsync_WithExistingUserOtherOrganization_ThrowsArgumentException()
+    {
+        // Arrange (Test 4: Existing User Belongs to Another Organization)
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+
+        var orgAId = Guid.NewGuid();
+        var existingUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "OtherOrg",
+            LastName = "Manager",
+            PhoneNumber = "09123456789",
+            OrganizationId = orgAId,
+            IsActive = true
+        };
+        identityDb.Users.Add(existingUser);
+        identityDb.SaveChanges();
+
+        var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
+        var useCase = new CreateOrganizationUseCase(managerIdentityService);
+
+        var request = new CreateOrganizationRequest
+        {
+            Name = "Organization B",
+            Code = "ORGB",
             Type = OrganizationType.Clinic,
             ManagerFirstName = "Ali",
             ManagerLastName = "Ahmadi",
@@ -148,14 +199,11 @@ public class OrganizationCreateTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
-        Assert.Contains("mobile number already exists", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("already assigned to another organization", ex.Message, StringComparison.OrdinalIgnoreCase);
 
-        // Assert no Organization was created
-        Assert.Empty(orgDb.Organizations);
-
-        // Assert no new User or UserRole was created
-        Assert.Single(identityDb.Users);
-        Assert.Empty(identityDb.UserRoles);
+        // Verify User's OrganizationId was NOT changed
+        var dbUser = await identityDb.Users.FirstAsync(u => u.Id == existingUser.Id);
+        Assert.Equal(orgAId, dbUser.OrganizationId);
     }
 
     [Fact]
@@ -234,7 +282,7 @@ public class OrganizationCreateTests
     }
 
     [Fact]
-    public async Task Controller_Create_WithDuplicateMobile_Returns400BadRequest()
+    public async Task Controller_Create_WithUserAssignedToOtherOrg_Returns400BadRequest()
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
@@ -244,7 +292,8 @@ public class OrganizationCreateTests
             Id = Guid.NewGuid(),
             FirstName = "Existing",
             LastName = "User",
-            PhoneNumber = "09123456789"
+            PhoneNumber = "09123456789",
+            OrganizationId = Guid.NewGuid()
         });
         identityDb.SaveChanges();
 
@@ -287,7 +336,7 @@ public class OrganizationCreateTests
 
         var problemDetails = Assert.IsType<ProblemDetails>(badRequestResult.Value);
         Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
-        Assert.Contains("mobile number already exists", problemDetails.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("already assigned to another organization", problemDetails.Detail, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
