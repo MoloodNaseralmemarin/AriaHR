@@ -319,6 +319,58 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task GetCurrentUser_CenterManagerWithOrganization_Returns200OK_WithOrganizationId()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var orgId = Guid.NewGuid();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Center",
+            LastName = "Manager",
+            PhoneNumber = "09129998877",
+            Email = "manager@ariahr.com",
+            OrganizationId = orgId,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "CenterManager" };
+        var userRole = new UserRole { UserId = user.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(user);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, "Center Manager")
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+        };
+
+        // Act
+        var actionResult = await controller.GetCurrentUser(CancellationToken.None);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsType<UserResponse>(okResult.Value);
+
+        Assert.Equal(user.Id, response.Id);
+        Assert.Equal(orgId, response.OrganizationId);
+        Assert.Contains("CenterManager", response.Roles);
+    }
+
+    [Fact]
     public void SendOtp_HasAllowAnonymousAttribute()
     {
         var methodInfo = typeof(AuthController).GetMethod(nameof(AuthController.SendOtp));
