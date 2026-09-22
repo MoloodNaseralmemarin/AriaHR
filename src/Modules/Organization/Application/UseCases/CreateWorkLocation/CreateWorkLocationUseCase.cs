@@ -29,11 +29,6 @@ public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
             throw new ArgumentException("شناسه سازمان الزامی است.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            throw new ArgumentException("نام محل کار الزامی است.");
-        }
-
         if (request.Latitude < -90 || request.Latitude > 90)
         {
             throw new ArgumentException("عرض جغرافیایی باید بین ۹۰- و ۹۰ باشد.");
@@ -55,12 +50,16 @@ public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
             throw new ArgumentException("سازمان مورد نظر یافت نشد.");
         }
 
+        var hasWorkLocation = await _workLocationRepository.HasWorkLocationAsync(organizationId, cancellationToken);
+        if (hasWorkLocation)
+        {
+            throw new InvalidOperationException("برای این سازمان قبلاً محل کار ثبت شده است.");
+        }
+
         var workLocation = new WorkLocation
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Name = request.Name.Trim(),
-            Address = request.Address?.Trim(),
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             RadiusInMeters = request.RadiusInMeters,
@@ -76,8 +75,6 @@ public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
         {
             Id = workLocation.Id,
             OrganizationId = workLocation.OrganizationId,
-            Name = workLocation.Name,
-            Address = workLocation.Address,
             Latitude = workLocation.Latitude,
             Longitude = workLocation.Longitude,
             RadiusInMeters = workLocation.RadiusInMeters,

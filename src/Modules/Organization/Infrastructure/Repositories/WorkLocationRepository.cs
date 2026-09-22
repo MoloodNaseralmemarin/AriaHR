@@ -37,4 +37,11 @@ public class WorkLocationRepository : IWorkLocationRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(w => !w.IsDeleted && w.Id == id, cancellationToken);
     }
+
+    public async Task<bool> HasWorkLocationAsync(Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.WorkLocations
+            .AsNoTracking()
+            .AnyAsync(w => !w.IsDeleted && w.OrganizationId == organizationId, cancellationToken);
+    }
 }

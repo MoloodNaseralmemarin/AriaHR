@@ -6,6 +6,7 @@ using AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
+using AriaHR.Modules.Scheduling.Domain.Entities;
 using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -48,8 +49,6 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Main Entrance Site",
-            Address = "123 Freedom Ave, Tehran",
             Latitude = 35.6892,
             Longitude = 51.3890,
             RadiusInMeters = 100,
@@ -65,8 +64,6 @@ public class WorkLocationCreateTests
         Assert.NotNull(result);
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal(orgId, result.OrganizationId);
-        Assert.Equal("Main Entrance Site", result.Name);
-        Assert.Equal("123 Freedom Ave, Tehran", result.Address);
         Assert.Equal(35.6892, result.Latitude);
         Assert.Equal(51.3890, result.Longitude);
         Assert.Equal(100, result.RadiusInMeters);
@@ -78,32 +75,10 @@ public class WorkLocationCreateTests
         Assert.Equal(orgId, dbLocation.OrganizationId);
     }
 
-    [Fact]
-    public async Task ExecuteAsync_WithEmptyName_ThrowsArgumentException()
-    {
-        // Arrange
-        var db = GetInMemoryDbContext();
-        var repo = new WorkLocationRepository(db);
-        var useCase = new CreateWorkLocationUseCase(repo);
-
-        var request = new CreateWorkLocationRequest
-        {
-            Name = "   ",
-            Latitude = 35.0,
-            Longitude = 51.0,
-            RadiusInMeters = 50
-        };
-
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid(), Guid.NewGuid()));
-        Assert.Contains("نام محل کار الزامی است", ex.Message);
-    }
-
     [Theory]
     [InlineData(90.1)]
     [InlineData(-90.1)]
     [InlineData(100.0)]
-    [InlineData(-180.01)]
     public async Task ExecuteAsync_WithInvalidLatitude_ThrowsArgumentException(double invalidLat)
     {
         // Arrange
@@ -113,7 +88,6 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Site A",
             Latitude = invalidLat,
             Longitude = 51.0,
             RadiusInMeters = 50
@@ -137,7 +111,6 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Site A",
             Latitude = 35.0,
             Longitude = invalidLng,
             RadiusInMeters = 50
@@ -160,7 +133,6 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Site A",
             Latitude = 35.0,
             Longitude = 51.0,
             RadiusInMeters = invalidRadius
@@ -181,7 +153,6 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Site A",
             Latitude = 35.0,
             Longitude = 51.0,
             RadiusInMeters = 50
@@ -192,8 +163,53 @@ public class WorkLocationCreateTests
         Assert.Contains("سازمان مورد نظر یافت نشد", ex.Message);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ExecuteAsync_DuplicateWorkLocation_ThrowsInvalidOperationException(bool existingIsActive)
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var orgId = Guid.NewGuid();
+        db.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Clinic With Existing WorkLocation",
+            Code = "CWE-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+
+        db.WorkLocations.Add(new WorkLocation
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            Latitude = 35.7000,
+            Longitude = 51.4000,
+            RadiusInMeters = 100,
+            IsActive = existingIsActive,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var repo = new WorkLocationRepository(db);
+        var useCase = new CreateWorkLocationUseCase(repo);
+
+        var request = new CreateWorkLocationRequest
+        {
+            Latitude = 35.7100,
+            Longitude = 51.4100,
+            RadiusInMeters = 150,
+            IsActive = true
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync(request, orgId, Guid.NewGuid()));
+        Assert.Equal("برای این سازمان قبلاً محل کار ثبت شده است.", ex.Message);
+    }
+
     [Fact]
-    public async Task Controller_CreateWorkLocation_AsCenterManager_ForOwnOrganization_Succeeds()
+    public async Task Controller_CreateWorkLocation_AsCenterManager_ForOwnOrganization_SucceedsAndTakesOrganizationIdFromAuthContext()
     {
         // Arrange
         var db = GetInMemoryDbContext();
@@ -231,11 +247,9 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Branchless Location",
             Latitude = 35.7000,
             Longitude = 51.4000,
-            RadiusInMeters = 75,
-            OrganizationId = managerOrgId // matches token claim
+            RadiusInMeters = 75
         };
 
         // Act
@@ -247,7 +261,6 @@ public class WorkLocationCreateTests
 
         var dto = Assert.IsType<WorkLocationDto>(objectResult.Value);
         Assert.Equal(managerOrgId, dto.OrganizationId);
-        Assert.Equal("Branchless Location", dto.Name);
     }
 
     [Fact]
@@ -281,7 +294,6 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Malicious Location Request",
             Latitude = 35.7000,
             Longitude = 51.4000,
             RadiusInMeters = 75,
@@ -333,7 +345,6 @@ public class WorkLocationCreateTests
 
         var request = new CreateWorkLocationRequest
         {
-            Name = "Admin Work Location",
             Latitude = 36.0000,
             Longitude = 52.0000,
             RadiusInMeters = 200,
@@ -352,16 +363,40 @@ public class WorkLocationCreateTests
     }
 
     [Fact]
-    public void WorkLocation_ModelDoesNotContainBranchIdOrBranchProperty()
+    public void WorkLocation_ModelDoesNotContainBranchIdOrBranchPropertyOrNameOrAddress()
     {
         // Arrange & Act
         var entityType = typeof(WorkLocation);
-        var branchIdProp = entityType.GetProperty("BranchId");
-        var branchProp = entityType.GetProperty("Branch");
 
         // Assert
-        Assert.Null(branchIdProp);
-        Assert.Null(branchProp);
+        Assert.Null(entityType.GetProperty("BranchId"));
+        Assert.Null(entityType.GetProperty("Branch"));
+        Assert.Null(entityType.GetProperty("Name"));
+        Assert.Null(entityType.GetProperty("Address"));
+    }
+
+    [Fact]
+    public void Shift_CreationAndModelIsCompletelyIndependentFromWorkLocation()
+    {
+        // Arrange & Act
+        var shiftType = typeof(Shift);
+        var workLocationType = typeof(WorkLocation);
+
+        // Assert
+        Assert.Null(shiftType.GetProperty("WorkLocationId"));
+        Assert.Null(shiftType.GetProperty("WorkLocation"));
+        Assert.Null(workLocationType.GetProperty("ShiftId"));
+        Assert.Null(workLocationType.GetProperty("Shift"));
+
+        var shift = new Shift
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            Name = "Morning Shift",
+            StartTime = new TimeOnly(8, 0),
+            EndTime = new TimeOnly(16, 0)
+        };
+        Assert.NotNull(shift);
     }
 
     [Fact]
