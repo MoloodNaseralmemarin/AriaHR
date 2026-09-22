@@ -38,5 +38,10 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Domain.
             .WithOne(x => x.Organization)
             .HasForeignKey(x => x.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(x => x.WorkLocations)
+            .WithOne(x => x.Organization)
+            .HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

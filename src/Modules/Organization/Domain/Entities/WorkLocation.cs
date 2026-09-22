@@ -10,9 +10,6 @@ public class WorkLocation : BaseEntity
     public Guid OrganizationId { get; set; }
     public Organization? Organization { get; set; }
 
-    public Guid BranchId { get; set; }
-    public Branch? Branch { get; set; }
-
     public string Name { get; set; } = string.Empty;
     public string? Address { get; set; }
     public double Latitude { get; set; }
