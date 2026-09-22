@@ -15,10 +15,5 @@ public sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
 
         builder.Property(x => x.Code)
             .IsRequired();
-
-        builder.HasMany(x => x.WorkLocations)
-            .WithOne(x => x.Branch)
-            .HasForeignKey(x => x.BranchId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

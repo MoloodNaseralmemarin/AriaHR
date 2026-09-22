@@ -27,4 +27,5 @@ public class Organization : BaseEntity
     public ICollection<Department> Departments { get; set; } = new List<Department>();
     public ICollection<Position> Positions { get; set; } = new List<Position>();
     public ICollection<Employee> Employees { get; set; } = new List<Employee>();
+    public ICollection<WorkLocation> WorkLocations { get; set; } = new List<WorkLocation>();
 }
