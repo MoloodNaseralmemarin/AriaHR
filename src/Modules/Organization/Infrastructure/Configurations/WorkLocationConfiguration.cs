@@ -10,9 +10,6 @@ public sealed class WorkLocationConfiguration : IEntityTypeConfiguration<WorkLoc
     {
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Name)
-            .IsRequired();
-
         builder.HasMany(x => x.QRCodes)
             .WithOne(x => x.WorkLocation)
             .HasForeignKey(x => x.WorkLocationId)

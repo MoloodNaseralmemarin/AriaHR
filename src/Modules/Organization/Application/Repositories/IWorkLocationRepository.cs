@@ -8,4 +8,5 @@ public interface IWorkLocationRepository
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<bool> OrganizationExistsAsync(Guid organizationId, CancellationToken cancellationToken = default);
     Task<WorkLocation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<bool> HasWorkLocationAsync(Guid organizationId, CancellationToken cancellationToken = default);
 }
