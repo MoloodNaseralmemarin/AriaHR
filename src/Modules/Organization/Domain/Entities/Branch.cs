@@ -15,6 +15,4 @@ public class Branch : BaseEntity
     public string? Address { get; set; }
     public string? Phone { get; set; }
     public bool IsActive { get; set; }
-
-    public ICollection<WorkLocation> WorkLocations { get; set; } = new List<WorkLocation>();
 }
