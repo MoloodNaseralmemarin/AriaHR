@@ -1,3 +1,4 @@
+using AriaHR.Modules.Identity.Application.Repositories;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.Repositories;
 using AriaHR.Modules.Organization.Domain.Entities;
@@ -7,10 +8,14 @@ namespace AriaHR.Modules.Organization.Application.UseCases.CreateEmployee;
 public class CreateEmployeeUseCase : ICreateEmployeeUseCase
 {
     private readonly IEmployeeRepository _employeeRepository;
+    private readonly IUserRepository _userRepository;
 
-    public CreateEmployeeUseCase(IEmployeeRepository employeeRepository)
+    public CreateEmployeeUseCase(
+        IEmployeeRepository employeeRepository,
+        IUserRepository userRepository)
     {
         _employeeRepository = employeeRepository ?? throw new ArgumentNullException(nameof(employeeRepository));
+        _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
     }
 
     public async Task<EmployeeDto> ExecuteAsync(
@@ -53,6 +58,17 @@ public class CreateEmployeeUseCase : ICreateEmployeeUseCase
         if (request.HireDate < request.BirthDate)
         {
             throw new ArgumentException("تاریخ استخدام نمی‌تواند قبل از تاریخ تولد باشد.");
+        }
+
+        var user = await _userRepository.GetByIdAsync(request.UserId, cancellationToken);
+        if (user == null || user.IsDeleted || !user.IsActive)
+        {
+            throw new ArgumentException("کاربر مورد نظر یافت نشد.");
+        }
+
+        if (user.OrganizationId.HasValue && user.OrganizationId.Value != Guid.Empty && user.OrganizationId.Value != organizationId)
+        {
+            throw new ArgumentException("کاربر به سازمان دیگری تعلق دارد.");
         }
 
         var organizationExists = await _employeeRepository.OrganizationExistsAsync(organizationId, cancellationToken);
