@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkLocationRepository, WorkLocationRepository>();
         services.AddScoped<IQrCodeRepository, QrCodeRepository>();
         services.AddScoped<IOrganizationManagerIdentityService, OrganizationManagerIdentityService>();
+        services.AddScoped<IEmployeeIdentityService, EmployeeIdentityService>();
         services.AddScoped<ICreateOrganizationUseCase, CreateOrganizationUseCase>();
         services.AddScoped<ICreateEmployeeUseCase, CreateEmployeeUseCase>();
         services.AddScoped<ICreateWorkLocationUseCase, CreateWorkLocationUseCase>();

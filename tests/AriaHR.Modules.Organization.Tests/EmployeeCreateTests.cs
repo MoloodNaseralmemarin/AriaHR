@@ -2,13 +2,12 @@ using System.Reflection;
 using System.Security.Claims;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
-using AriaHR.Modules.Identity.Infrastructure.Repositories;
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateEmployee;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
-using AriaHR.Modules.Organization.Infrastructure.Repositories;
+using AriaHR.Modules.Organization.Infrastructure.Services;
 using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -35,11 +34,88 @@ public class EmployeeCreateTests
         var orgDb = new OrganizationDbContext(orgOptions);
         var identityDb = new IdentityDbContext(identityOptions);
 
+        identityDb.Roles.Add(new Role
+        {
+            Id = Guid.NewGuid(),
+            Name = "Employee",
+            Description = "Employee"
+        });
+        identityDb.SaveChanges();
+
         return (orgDb, identityDb);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithValidRequest_CreatesEmployeeSuccessfully()
+    public async Task ExecuteAsync_WithNewUserInfo_CreatesUserAndEmployeeSuccessfully()
+    {
+        // Arrange (1. Create User + Employee flow)
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        var orgId = Guid.NewGuid();
+
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Mohammad",
+            LastName = "Rezai",
+            PhoneNumber = "09123456789",
+            Email = "mohammad@example.com",
+            PersonnelCode = "EMP-001",
+            NationalCode = "1234567890",
+            BirthDate = new DateOnly(1990, 5, 15),
+            HireDate = new DateOnly(2022, 1, 10),
+            Gender = "Male",
+            ProfileImagePath = "/images/emp001.png"
+        };
+
+        var creatorId = Guid.NewGuid();
+
+        // Act
+        var result = await useCase.ExecuteAsync(request, orgId, creatorId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotEqual(Guid.Empty, result.Id);
+        Assert.NotEqual(Guid.Empty, result.UserId); // Verified UserId generated from User creation
+        Assert.Equal(orgId, result.OrganizationId);
+        Assert.Equal("EMP-001", result.PersonnelCode);
+        Assert.Equal("1234567890", result.NationalCode);
+        Assert.Equal(new DateOnly(1990, 5, 15), result.BirthDate);
+        Assert.Equal(new DateOnly(2022, 1, 10), result.HireDate);
+
+        // Verify User was created in Identity module with correct fields and OrganizationId
+        var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.Id == result.UserId);
+        Assert.NotNull(dbUser);
+        Assert.Equal("Mohammad", dbUser.FirstName);
+        Assert.Equal("Rezai", dbUser.LastName);
+        Assert.Equal("09123456789", dbUser.PhoneNumber);
+        Assert.Equal(orgId, dbUser.OrganizationId);
+
+        // Verify Employee Role assigned in Identity module
+        var empRole = await identityDb.Roles.FirstAsync(r => r.Name == "Employee");
+        var userRole = await identityDb.UserRoles.FirstOrDefaultAsync(ur => ur.UserId == dbUser.Id && ur.RoleId == empRole.Id);
+        Assert.NotNull(userRole);
+
+        // Verify Employee persisted in Organization module
+        var dbEmployee = await orgDb.Employees.FirstOrDefaultAsync(e => e.Id == result.Id);
+        Assert.NotNull(dbEmployee);
+        Assert.Equal(result.UserId, dbEmployee.UserId);
+        Assert.Equal(orgId, dbEmployee.OrganizationId);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithExistingUserId_AttachesUserAndCreatesEmployee()
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
@@ -59,7 +135,7 @@ public class EmployeeCreateTests
         identityDb.Users.Add(new User
         {
             Id = userId,
-            FirstName = "Emp",
+            FirstName = "Existing",
             LastName = "User",
             PhoneNumber = "09120001122",
             OrganizationId = orgId,
@@ -67,57 +143,50 @@ public class EmployeeCreateTests
         });
         await identityDb.SaveChangesAsync();
 
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var request = new CreateEmployeeRequest
         {
             UserId = userId,
-            PersonnelCode = "EMP-001",
-            NationalCode = "1234567890",
-            BirthDate = new DateOnly(1990, 5, 15),
-            HireDate = new DateOnly(2022, 1, 10),
-            Gender = "Male",
-            ProfileImagePath = "/images/emp001.png"
+            PersonnelCode = "EMP-002",
+            NationalCode = "0987654321",
+            BirthDate = new DateOnly(1992, 2, 20),
+            HireDate = new DateOnly(2023, 3, 15)
         };
 
-        var creatorId = Guid.NewGuid();
-
         // Act
-        var result = await useCase.ExecuteAsync(request, orgId, creatorId);
+        var result = await useCase.ExecuteAsync(request, orgId, Guid.NewGuid());
 
         // Assert
         Assert.NotNull(result);
-        Assert.NotEqual(Guid.Empty, result.Id);
-        Assert.Equal(request.UserId, result.UserId);
+        Assert.Equal(userId, result.UserId);
         Assert.Equal(orgId, result.OrganizationId);
-        Assert.Equal("EMP-001", result.PersonnelCode);
-        Assert.Equal("1234567890", result.NationalCode);
-        Assert.Equal(new DateOnly(1990, 5, 15), result.BirthDate);
-        Assert.Equal(new DateOnly(2022, 1, 10), result.HireDate);
-        Assert.Equal("Male", result.Gender);
-        Assert.True(result.IsActive);
-        Assert.Equal("/images/emp001.png", result.ProfileImagePath);
-        Assert.Equal(creatorId, result.CreatedByUserId);
-
-        var dbEmployee = await orgDb.Employees.FirstOrDefaultAsync(e => e.Id == result.Id);
-        Assert.NotNull(dbEmployee);
-        Assert.Equal(orgId, dbEmployee.OrganizationId);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithNonExistentUser_ThrowsArgumentException()
+    public async Task ExecuteAsync_WithMissingNewUserInfo_ThrowsArgumentException()
     {
-        // Arrange
+        // Arrange (Missing user creation info when UserId is not passed)
         var (orgDb, identityDb) = GetInMemoryDbContexts();
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var orgId = Guid.NewGuid();
+
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var request = new CreateEmployeeRequest
         {
-            UserId = Guid.NewGuid(),
+            // Neither UserId nor FirstName/LastName/PhoneNumber provided
             PersonnelCode = "EMP-001",
             NationalCode = "1234567890",
             BirthDate = new DateOnly(1990, 5, 15),
@@ -125,7 +194,44 @@ public class EmployeeCreateTests
         };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid(), Guid.NewGuid()));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, orgId, Guid.NewGuid()));
+        Assert.Contains("اطلاعات کاربر", ex.Message);
+
+        // Verify Employee was NOT created
+        Assert.Empty(orgDb.Employees);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithNonExistentUserId_ThrowsArgumentException()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        var orgId = Guid.NewGuid();
+
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Hospital",
+            Code = "H1",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
+
+        var request = new CreateEmployeeRequest
+        {
+            UserId = Guid.NewGuid(), // Non-existent UserId
+            PersonnelCode = "EMP-001",
+            NationalCode = "1234567890",
+            BirthDate = new DateOnly(1990, 5, 15),
+            HireDate = new DateOnly(2022, 1, 10)
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, orgId, Guid.NewGuid()));
         Assert.Contains("کاربر مورد نظر یافت نشد", ex.Message);
     }
 
@@ -135,8 +241,18 @@ public class EmployeeCreateTests
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
         var targetOrgId = Guid.NewGuid();
-        var userOrgId = Guid.NewGuid();
+        var otherOrgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = targetOrgId,
+            Name = "Target Hospital",
+            Code = "TH-02",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
 
         identityDb.Users.Add(new User
         {
@@ -144,14 +260,13 @@ public class EmployeeCreateTests
             FirstName = "OtherOrg",
             LastName = "User",
             PhoneNumber = "09120003344",
-            OrganizationId = userOrgId,
+            OrganizationId = otherOrgId,
             IsActive = true
         });
         await identityDb.SaveChangesAsync();
 
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var request = new CreateEmployeeRequest
         {
@@ -168,40 +283,18 @@ public class EmployeeCreateTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithEmptyUserId_ThrowsArgumentException()
-    {
-        // Arrange
-        var (orgDb, identityDb) = GetInMemoryDbContexts();
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
-
-        var request = new CreateEmployeeRequest
-        {
-            UserId = Guid.Empty,
-            PersonnelCode = "EMP-001",
-            NationalCode = "1234567890",
-            BirthDate = new DateOnly(1990, 5, 15),
-            HireDate = new DateOnly(2022, 1, 10)
-        };
-
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid(), Guid.NewGuid()));
-        Assert.Contains("شناسه کاربر الزامی است", ex.Message);
-    }
-
-    [Fact]
     public async Task ExecuteAsync_WithFutureBirthDate_ThrowsArgumentException()
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var request = new CreateEmployeeRequest
         {
-            UserId = Guid.NewGuid(),
+            FirstName = "Ali",
+            LastName = "Ahmadi",
+            PhoneNumber = "09121111111",
             PersonnelCode = "EMP-001",
             NationalCode = "1234567890",
             BirthDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
@@ -218,13 +311,14 @@ public class EmployeeCreateTests
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var request = new CreateEmployeeRequest
         {
-            UserId = Guid.NewGuid(),
+            FirstName = "Ali",
+            LastName = "Ahmadi",
+            PhoneNumber = "09121111111",
             PersonnelCode = "EMP-001",
             NationalCode = "1234567890",
             BirthDate = new DateOnly(2000, 1, 1),
@@ -242,8 +336,6 @@ public class EmployeeCreateTests
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
         var orgId = Guid.NewGuid();
-        var userId1 = Guid.NewGuid();
-        var userId2 = Guid.NewGuid();
 
         orgDb.Organizations.Add(new Domain.Entities.Organization
         {
@@ -257,7 +349,7 @@ public class EmployeeCreateTests
         orgDb.Employees.Add(new Employee
         {
             Id = Guid.NewGuid(),
-            UserId = userId1,
+            UserId = Guid.NewGuid(),
             OrganizationId = orgId,
             PersonnelCode = "P-100",
             NationalCode = "1234567890",
@@ -267,26 +359,16 @@ public class EmployeeCreateTests
         });
         await orgDb.SaveChangesAsync();
 
-        identityDb.Users.Add(new User
-        {
-            Id = userId2,
-            FirstName = "Emp2",
-            LastName = "User2",
-            PhoneNumber = "09120005566",
-            OrganizationId = orgId,
-            IsActive = true
-        });
-        await identityDb.SaveChangesAsync();
-
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var request = new CreateEmployeeRequest
         {
-            UserId = userId2,
+            FirstName = "Emp2",
+            LastName = "User2",
+            PhoneNumber = "09120005566",
             PersonnelCode = "P-200",
-            NationalCode = "1234567890", // duplicate
+            NationalCode = "1234567890", // duplicate national code
             BirthDate = new DateOnly(1995, 1, 1),
             HireDate = new DateOnly(2021, 1, 1)
         };
@@ -302,8 +384,6 @@ public class EmployeeCreateTests
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
         var orgId = Guid.NewGuid();
-        var userId1 = Guid.NewGuid();
-        var userId2 = Guid.NewGuid();
 
         orgDb.Organizations.Add(new Domain.Entities.Organization
         {
@@ -317,7 +397,7 @@ public class EmployeeCreateTests
         orgDb.Employees.Add(new Employee
         {
             Id = Guid.NewGuid(),
-            UserId = userId1,
+            UserId = Guid.NewGuid(),
             OrganizationId = orgId,
             PersonnelCode = "P-100",
             NationalCode = "1111111111",
@@ -327,24 +407,14 @@ public class EmployeeCreateTests
         });
         await orgDb.SaveChangesAsync();
 
-        identityDb.Users.Add(new User
-        {
-            Id = userId2,
-            FirstName = "Emp2",
-            LastName = "User2",
-            PhoneNumber = "09120007788",
-            OrganizationId = orgId,
-            IsActive = true
-        });
-        await identityDb.SaveChangesAsync();
-
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var request = new CreateEmployeeRequest
         {
-            UserId = userId2,
+            FirstName = "Emp2",
+            LastName = "User2",
+            PhoneNumber = "09120007788",
             PersonnelCode = "P-100", // duplicate in same org
             NationalCode = "2222222222",
             BirthDate = new DateOnly(1995, 1, 1),
@@ -357,71 +427,11 @@ public class EmployeeCreateTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithDuplicateUserId_ThrowsArgumentException()
-    {
-        // Arrange
-        var (orgDb, identityDb) = GetInMemoryDbContexts();
-        var orgId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-
-        orgDb.Organizations.Add(new Domain.Entities.Organization
-        {
-            Id = orgId,
-            Name = "Hospital",
-            Code = "H1",
-            Type = OrganizationType.Clinic,
-            IsActive = true
-        });
-
-        orgDb.Employees.Add(new Employee
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            OrganizationId = orgId,
-            PersonnelCode = "P-100",
-            NationalCode = "1111111111",
-            BirthDate = new DateOnly(1990, 1, 1),
-            HireDate = new DateOnly(2020, 1, 1),
-            IsActive = true
-        });
-        await orgDb.SaveChangesAsync();
-
-        identityDb.Users.Add(new User
-        {
-            Id = userId,
-            FirstName = "Emp",
-            LastName = "User",
-            PhoneNumber = "09120009900",
-            OrganizationId = orgId,
-            IsActive = true
-        });
-        await identityDb.SaveChangesAsync();
-
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
-
-        var request = new CreateEmployeeRequest
-        {
-            UserId = userId, // duplicate user
-            PersonnelCode = "P-200",
-            NationalCode = "2222222222",
-            BirthDate = new DateOnly(1995, 1, 1),
-            HireDate = new DateOnly(2021, 1, 1)
-        };
-
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, orgId, Guid.NewGuid()));
-        Assert.Contains("قبلاً به عنوان کارمند ثبت شده است", ex.Message);
-    }
-
-    [Fact]
     public async Task Controller_CreateEmployee_AsCenterManager_DerivesOrgIdFromToken()
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
         var managerOrgId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
 
         orgDb.Organizations.Add(new Domain.Entities.Organization
         {
@@ -433,20 +443,8 @@ public class EmployeeCreateTests
         });
         await orgDb.SaveChangesAsync();
 
-        identityDb.Users.Add(new User
-        {
-            Id = userId,
-            FirstName = "Emp",
-            LastName = "User",
-            PhoneNumber = "09121112233",
-            OrganizationId = managerOrgId,
-            IsActive = true
-        });
-        await identityDb.SaveChangesAsync();
-
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
@@ -468,7 +466,9 @@ public class EmployeeCreateTests
 
         var request = new CreateEmployeeRequest
         {
-            UserId = userId,
+            FirstName = "Hassan",
+            LastName = "Karimi",
+            PhoneNumber = "09128889900",
             PersonnelCode = "P-888",
             NationalCode = "9876543210",
             BirthDate = new DateOnly(1988, 8, 8),
@@ -492,9 +492,8 @@ public class EmployeeCreateTests
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
@@ -515,7 +514,9 @@ public class EmployeeCreateTests
 
         var request = new CreateEmployeeRequest
         {
-            UserId = Guid.NewGuid(),
+            FirstName = "Forbid",
+            LastName = "Test",
+            PhoneNumber = "09129999999",
             PersonnelCode = "P-999",
             NationalCode = "9999999999",
             BirthDate = new DateOnly(1988, 8, 8),
@@ -535,7 +536,6 @@ public class EmployeeCreateTests
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
         var targetOrgId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
 
         orgDb.Organizations.Add(new Domain.Entities.Organization
         {
@@ -547,20 +547,8 @@ public class EmployeeCreateTests
         });
         await orgDb.SaveChangesAsync();
 
-        identityDb.Users.Add(new User
-        {
-            Id = userId,
-            FirstName = "SysAdminEmp",
-            LastName = "User",
-            PhoneNumber = "09122223344",
-            OrganizationId = targetOrgId,
-            IsActive = true
-        });
-        await identityDb.SaveChangesAsync();
-
-        var repo = new EmployeeRepository(orgDb);
-        var userRepo = new UserRepository(identityDb);
-        var useCase = new CreateEmployeeUseCase(repo, userRepo);
+        var employeeIdentityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(employeeIdentityService);
 
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
@@ -581,7 +569,9 @@ public class EmployeeCreateTests
 
         var request = new CreateEmployeeRequest
         {
-            UserId = userId,
+            FirstName = "SysAdminEmp",
+            LastName = "User",
+            PhoneNumber = "09122223344",
             PersonnelCode = "P-SYS",
             NationalCode = "5555555555",
             BirthDate = new DateOnly(1985, 5, 5),

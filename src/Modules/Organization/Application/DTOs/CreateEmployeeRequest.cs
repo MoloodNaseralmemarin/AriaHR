@@ -2,7 +2,12 @@ namespace AriaHR.Modules.Organization.Application.DTOs;
 
 public class CreateEmployeeRequest
 {
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Email { get; set; }
+
     public string PersonnelCode { get; set; } = string.Empty;
     public string NationalCode { get; set; } = string.Empty;
     public DateOnly BirthDate { get; set; }
