@@ -232,6 +232,7 @@ public class IdentityAuthenticationTests
         var userRoleRepo = new UserRoleRepository(dbContext);
         var tokenService = new JwtTokenService(_jwtOptions);
 
+        var expectedOrgId = Guid.NewGuid();
         var testUser = new User
         {
             Id = Guid.NewGuid(),
@@ -239,6 +240,7 @@ public class IdentityAuthenticationTests
             LastName = "Manager",
             PhoneNumber = "09000000002",
             Email = "manager@ariahr.com",
+            OrganizationId = expectedOrgId,
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -272,11 +274,15 @@ public class IdentityAuthenticationTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(result.Response);
+        Assert.Equal(expectedOrgId, result.Response.User.OrganizationId);
         Assert.Contains("CenterManager", result.Response.User.Roles);
 
         var handler = new JwtSecurityTokenHandler();
         var jwtToken = handler.ReadJwtToken(result.Response.AccessToken);
         Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Role && c.Value == "CenterManager");
+        var orgClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == "organization_id");
+        Assert.NotNull(orgClaim);
+        Assert.Equal(expectedOrgId.ToString(), orgClaim.Value);
     }
 
     [Fact]
