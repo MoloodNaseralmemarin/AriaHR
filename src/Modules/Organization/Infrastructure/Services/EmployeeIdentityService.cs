@@ -81,6 +81,49 @@ public class EmployeeIdentityService : IEmployeeIdentityService
             throw new ArgumentException("تاریخ استخدام نمی‌تواند قبل از تاریخ تولد باشد.", nameof(request.HireDate));
         }
 
+        // Pre-validations before starting transaction
+        // 1. Verify organization existence
+        var organizationExists = await _organizationDbContext.Organizations
+            .AnyAsync(o => o.Id == organizationId && !o.IsDeleted && o.IsActive, cancellationToken);
+        if (!organizationExists)
+        {
+            throw new ArgumentException("سازمان مورد نظر یافت نشد.");
+        }
+
+        // 2. Resolve Employee role in Identity
+        var employeeRole = await _identityDbContext.Roles
+            .FirstOrDefaultAsync(r => r.Name == "Employee", cancellationToken);
+        if (employeeRole == null)
+        {
+            throw new InvalidOperationException("Role 'Employee' does not exist in the database.");
+        }
+
+        // 3. Check for existing user with normalized phone number
+        var existingUser = await _identityDbContext.Users
+            .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone, cancellationToken);
+        if (existingUser != null)
+        {
+            throw new ArgumentException("کاربری با این شماره موبایل قبلاً ثبت شده است.");
+        }
+
+        // 4. Validate duplicate NationalCode
+        string trimmedNationalCode = request.NationalCode.Trim();
+        var nationalCodeExists = await _organizationDbContext.Employees
+            .AnyAsync(e => e.NationalCode == trimmedNationalCode && !e.IsDeleted, cancellationToken);
+        if (nationalCodeExists)
+        {
+            throw new ArgumentException("کد ملی وارد شده تکراری است.");
+        }
+
+        // 5. Validate duplicate PersonnelCode within organization
+        string trimmedPersonnelCode = request.PersonnelCode.Trim();
+        var personnelCodeExists = await _organizationDbContext.Employees
+            .AnyAsync(e => e.OrganizationId == organizationId && e.PersonnelCode == trimmedPersonnelCode && !e.IsDeleted, cancellationToken);
+        if (personnelCodeExists)
+        {
+            throw new ArgumentException("کد پرسنلی در این سازمان تکراری است.");
+        }
+
         bool isRelational = _organizationDbContext.Database.IsRelational() && _identityDbContext.Database.IsRelational();
 
         IDbContextTransaction? transaction = null;
@@ -96,51 +139,9 @@ public class EmployeeIdentityService : IEmployeeIdentityService
 
         try
         {
-            // 1. Verify organization existence
-            var organizationExists = await _organizationDbContext.Organizations
-                .AnyAsync(o => o.Id == organizationId && !o.IsDeleted && o.IsActive, cancellationToken);
-            if (!organizationExists)
-            {
-                throw new ArgumentException("سازمان مورد نظر یافت نشد.");
-            }
-
-            // 2. Resolve Employee role in Identity
-            var employeeRole = await _identityDbContext.Roles
-                .FirstOrDefaultAsync(r => r.Name == "Employee", cancellationToken);
-            if (employeeRole == null)
-            {
-                throw new InvalidOperationException("Role 'Employee' does not exist in the database.");
-            }
-
-            // 3. Check for existing user with normalized phone number
-            var existingUser = await _identityDbContext.Users
-                .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone, cancellationToken);
-            if (existingUser != null)
-            {
-                throw new ArgumentException("کاربری با این شماره موبایل قبلاً ثبت شده است.");
-            }
-
-            // 4. Validate duplicate NationalCode
-            string trimmedNationalCode = request.NationalCode.Trim();
-            var nationalCodeExists = await _organizationDbContext.Employees
-                .AnyAsync(e => e.NationalCode == trimmedNationalCode && !e.IsDeleted, cancellationToken);
-            if (nationalCodeExists)
-            {
-                throw new ArgumentException("کد ملی وارد شده تکراری است.");
-            }
-
-            // 5. Validate duplicate PersonnelCode within organization
-            string trimmedPersonnelCode = request.PersonnelCode.Trim();
-            var personnelCodeExists = await _organizationDbContext.Employees
-                .AnyAsync(e => e.OrganizationId == organizationId && e.PersonnelCode == trimmedPersonnelCode && !e.IsDeleted, cancellationToken);
-            if (personnelCodeExists)
-            {
-                throw new ArgumentException("کد پرسنلی در این سازمان تکراری است.");
-            }
-
             var now = DateTime.UtcNow;
 
-            // 6. Create User in Identity
+            // Step 1: Create User
             var user = new User
             {
                 Id = Guid.NewGuid(),
@@ -156,7 +157,7 @@ public class EmployeeIdentityService : IEmployeeIdentityService
 
             await _identityDbContext.Users.AddAsync(user, cancellationToken);
 
-            // 7. Assign Employee Role
+            // Step 2: Assign Employee Role
             var userRole = new UserRole
             {
                 Id = Guid.NewGuid(),
@@ -168,9 +169,7 @@ public class EmployeeIdentityService : IEmployeeIdentityService
 
             await _identityDbContext.UserRoles.AddAsync(userRole, cancellationToken);
 
-            await _identityDbContext.SaveChangesAsync(cancellationToken);
-
-            // 8. Create Employee linked to User
+            // Step 3: Create Employee using generated User.Id
             var employee = new Employee
             {
                 Id = Guid.NewGuid(),
@@ -188,6 +187,9 @@ public class EmployeeIdentityService : IEmployeeIdentityService
             };
 
             await _organizationDbContext.Employees.AddAsync(employee, cancellationToken);
+
+            // Step 4: Save Changes & Commit Transaction
+            await _identityDbContext.SaveChangesAsync(cancellationToken);
             await _organizationDbContext.SaveChangesAsync(cancellationToken);
 
             if (transaction != null)
@@ -236,6 +238,11 @@ public class EmployeeIdentityService : IEmployeeIdentityService
         }
         finally
         {
+            if (isRelational)
+            {
+                _identityDbContext.Database.UseTransaction(null);
+            }
+
             if (transaction != null)
             {
                 await transaction.DisposeAsync();

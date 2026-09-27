@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Reflection;
 using System.Security.Claims;
 using AriaHR.Modules.Identity.Domain.Entities;
@@ -9,10 +10,13 @@ using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Services;
 using AriaHR.Shared.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Xunit;
 
 namespace AriaHR.Modules.Organization.Tests;
@@ -35,6 +39,31 @@ public class EmployeeCreateTests
         var identityDb = new IdentityDbContext(identityOptions);
 
         return (orgDb, identityDb);
+    }
+
+    private (OrganizationDbContext orgDb, IdentityDbContext identityDb, DbConnection connection) GetSqliteDbContexts()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+
+        var orgOptions = new DbContextOptionsBuilder<OrganizationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        var identityOptions = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        var orgDb = new OrganizationDbContext(orgOptions);
+        var identityDb = new IdentityDbContext(identityOptions);
+
+        var orgCreator = orgDb.Database.GetService<IRelationalDatabaseCreator>();
+        orgCreator.CreateTables();
+
+        var identityCreator = identityDb.Database.GetService<IRelationalDatabaseCreator>();
+        identityCreator.CreateTables();
+
+        return (orgDb, identityDb, connection);
     }
 
     private async Task SeedEmployeeRoleAsync(IdentityDbContext identityDb)
@@ -125,6 +154,179 @@ public class EmployeeCreateTests
         Assert.NotNull(dbEmployee);
         Assert.Equal(createdUser.Id, dbEmployee.UserId);
         Assert.Equal(orgId, dbEmployee.OrganizationId);
+    }
+
+    [Fact]
+    public async Task Sqlite_Success_PersistsUserUserRoleAndEmployeeWithMatchingUserId()
+    {
+        // Arrange
+        var (orgDb, identityDb, connection) = GetSqliteDbContexts();
+        try
+        {
+            await SeedEmployeeRoleAsync(identityDb);
+
+            var orgId = Guid.NewGuid();
+            orgDb.Organizations.Add(new Domain.Entities.Organization
+            {
+                Id = orgId,
+                Name = "Sqlite Hospital",
+                Code = "SQ-01",
+                Type = OrganizationType.Clinic,
+                IsActive = true
+            });
+            await orgDb.SaveChangesAsync();
+
+            var identityService = new EmployeeIdentityService(orgDb, identityDb);
+            var request = new CreateEmployeeRequest
+            {
+                FirstName = "Alice",
+                LastName = "Smith",
+                PhoneNumber = "09123334455",
+                Email = "alice@example.com",
+                PersonnelCode = "EMP-SQL-1",
+                NationalCode = "0011223344",
+                BirthDate = new DateOnly(1992, 3, 10),
+                HireDate = new DateOnly(2021, 6, 1)
+            };
+
+            // Act
+            var result = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+            // Assert
+            Assert.NotNull(result);
+            var createdUser = await identityDb.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == result.UserId);
+            var createdUserRole = await identityDb.UserRoles.AsNoTracking().FirstOrDefaultAsync(ur => ur.UserId == result.UserId);
+            var createdEmployee = await orgDb.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.UserId == result.UserId);
+
+            Assert.NotNull(createdUser);
+            Assert.NotNull(createdUserRole);
+            Assert.NotNull(createdEmployee);
+
+            Assert.Equal(createdUser.Id, createdUserRole.UserId);
+            Assert.Equal(createdUser.Id, createdEmployee.UserId);
+            var empRole = await identityDb.Roles.FirstAsync(r => r.Name == "Employee");
+            Assert.Equal(empRole.Id, createdUserRole.RoleId);
+        }
+        finally
+        {
+            await orgDb.DisposeAsync();
+            await identityDb.DisposeAsync();
+            await connection.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Sqlite_FailureScenario_MissingEmployeeRole_RollsBackAll()
+    {
+        // Arrange
+        var (orgDb, identityDb, connection) = GetSqliteDbContexts();
+        try
+        {
+            // Do NOT seed Employee Role
+
+            var orgId = Guid.NewGuid();
+            orgDb.Organizations.Add(new Domain.Entities.Organization
+            {
+                Id = orgId,
+                Name = "Sqlite Hospital",
+                Code = "SQ-01",
+                Type = OrganizationType.Clinic,
+                IsActive = true
+            });
+            await orgDb.SaveChangesAsync();
+
+            var identityService = new EmployeeIdentityService(orgDb, identityDb);
+            var request = new CreateEmployeeRequest
+            {
+                FirstName = "NoRole",
+                LastName = "User",
+                PhoneNumber = "09129998877",
+                PersonnelCode = "EMP-SQL-NOROLE",
+                NationalCode = "9988776655",
+                BirthDate = new DateOnly(1990, 1, 1),
+                HireDate = new DateOnly(2020, 1, 1)
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
+
+            Assert.Contains("Employee", ex.Message);
+
+            // Verify database state: 0 Users, 0 UserRoles, 0 Employees
+            Assert.Equal(0, await identityDb.Users.CountAsync());
+            Assert.Equal(0, await identityDb.UserRoles.CountAsync());
+            Assert.Equal(0, await orgDb.Employees.CountAsync());
+        }
+        finally
+        {
+            await orgDb.DisposeAsync();
+            await identityDb.DisposeAsync();
+            await connection.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Sqlite_FailureScenario_EmployeeSaveFails_RollsBackUserAndUserRole()
+    {
+        // Arrange
+        var (orgDb, identityDb, connection) = GetSqliteDbContexts();
+        try
+        {
+            await SeedEmployeeRoleAsync(identityDb);
+
+            var orgId = Guid.NewGuid();
+            orgDb.Organizations.Add(new Domain.Entities.Organization
+            {
+                Id = orgId,
+                Name = "Sqlite Hospital",
+                Code = "SQ-01",
+                Type = OrganizationType.Clinic,
+                IsActive = true
+            });
+
+            // Pre-insert an Employee with NationalCode '1111111111'
+            orgDb.Employees.Add(new Employee
+            {
+                Id = Guid.NewGuid(),
+                UserId = Guid.NewGuid(),
+                OrganizationId = orgId,
+                PersonnelCode = "EMP-PREV",
+                NationalCode = "1111111111",
+                BirthDate = new DateOnly(1980, 1, 1),
+                HireDate = new DateOnly(2000, 1, 1),
+                IsActive = true
+            });
+            await orgDb.SaveChangesAsync();
+
+            var identityService = new EmployeeIdentityService(orgDb, identityDb);
+
+            var request = new CreateEmployeeRequest
+            {
+                FirstName = "FailEmp",
+                LastName = "Test",
+                PhoneNumber = "09121110099",
+                PersonnelCode = "EMP-UNIQUE-CODE",
+                NationalCode = "1111111111", // Duplicate NationalCode
+                BirthDate = new DateOnly(1990, 1, 1),
+                HireDate = new DateOnly(2020, 1, 1)
+            };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
+
+            // Verify no user or user role remained for "FailEmp"
+            Assert.False(await identityDb.Users.AnyAsync(u => u.PhoneNumber == "09121110099"));
+            Assert.Equal(0, await identityDb.UserRoles.CountAsync());
+            Assert.Equal(1, await orgDb.Employees.CountAsync()); // Only pre-existing Employee remains
+        }
+        finally
+        {
+            await orgDb.DisposeAsync();
+            await identityDb.DisposeAsync();
+            await connection.DisposeAsync();
+        }
     }
 
     [Fact]
