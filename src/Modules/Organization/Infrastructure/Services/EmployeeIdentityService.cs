@@ -202,6 +202,10 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 Id = employee.Id,
                 UserId = employee.UserId,
                 OrganizationId = employee.OrganizationId,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                PhoneNumber = user.PhoneNumber,
+                Email = user.Email,
                 PersonnelCode = employee.PersonnelCode,
                 NationalCode = employee.NationalCode,
                 BirthDate = employee.BirthDate,
@@ -248,5 +252,62 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 await transaction.DisposeAsync();
             }
         }
+    }
+
+    public async Task<IEnumerable<EmployeeDto>> GetEmployeesByOrganizationAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        if (organizationId == Guid.Empty)
+        {
+            throw new ArgumentException("شناسه سازمان الزامی است.", nameof(organizationId));
+        }
+
+        var employees = await _organizationDbContext.Employees
+            .AsNoTracking()
+            .Where(e => e.OrganizationId == organizationId && !e.IsDeleted)
+            .OrderByDescending(e => e.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        if (!employees.Any())
+        {
+            return Enumerable.Empty<EmployeeDto>();
+        }
+
+        var userIds = employees.Select(e => e.UserId).Distinct().ToList();
+
+        var users = await _identityDbContext.Users
+            .AsNoTracking()
+            .Where(u => userIds.Contains(u.Id) && !u.IsDeleted)
+            .ToDictionaryAsync(u => u.Id, cancellationToken);
+
+        var result = new List<EmployeeDto>();
+
+        foreach (var employee in employees)
+        {
+            users.TryGetValue(employee.UserId, out var user);
+
+            result.Add(new EmployeeDto
+            {
+                Id = employee.Id,
+                UserId = employee.UserId,
+                OrganizationId = employee.OrganizationId,
+                FirstName = user?.FirstName ?? string.Empty,
+                LastName = user?.LastName ?? string.Empty,
+                PhoneNumber = user?.PhoneNumber ?? string.Empty,
+                Email = user?.Email,
+                PersonnelCode = employee.PersonnelCode,
+                NationalCode = employee.NationalCode,
+                BirthDate = employee.BirthDate,
+                HireDate = employee.HireDate,
+                Gender = employee.Gender,
+                IsActive = employee.IsActive,
+                ProfileImagePath = employee.ProfileImagePath,
+                CreatedAtUtc = employee.CreatedAtUtc,
+                CreatedByUserId = employee.CreatedByUserId
+            });
+        }
+
+        return result;
     }
 }

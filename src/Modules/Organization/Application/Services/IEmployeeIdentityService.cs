@@ -9,4 +9,8 @@ public interface IEmployeeIdentityService
         Guid organizationId,
         Guid createdByUserId,
         CancellationToken cancellationToken = default);
+
+    Task<IEnumerable<EmployeeDto>> GetEmployeesByOrganizationAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken = default);
 }
