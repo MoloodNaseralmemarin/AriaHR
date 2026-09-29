@@ -5,6 +5,10 @@ public class EmployeeDto
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
     public Guid OrganizationId { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string PhoneNumber { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string PersonnelCode { get; set; } = string.Empty;
     public string NationalCode { get; set; } = string.Empty;
     public DateOnly BirthDate { get; set; }

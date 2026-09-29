@@ -6,6 +6,7 @@ using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateEmployee;
+using AriaHR.Modules.Organization.Application.UseCases.GetEmployees;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Services;
@@ -572,6 +573,7 @@ public class EmployeeCreateTests
 
         var identityService = new EmployeeIdentityService(orgDb, identityDb);
         var useCase = new CreateEmployeeUseCase(identityService);
+        var getEmployeesUseCase = new GetEmployeesUseCase(identityService);
 
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
@@ -586,7 +588,7 @@ public class EmployeeCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(useCase, currentUserService)
+        var controller = new EmployeesController(useCase, getEmployeesUseCase, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -623,6 +625,7 @@ public class EmployeeCreateTests
 
         var identityService = new EmployeeIdentityService(orgDb, identityDb);
         var useCase = new CreateEmployeeUseCase(identityService);
+        var getEmployeesUseCase = new GetEmployeesUseCase(identityService);
 
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
@@ -636,7 +639,7 @@ public class EmployeeCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(useCase, currentUserService)
+        var controller = new EmployeesController(useCase, getEmployeesUseCase, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -679,6 +682,7 @@ public class EmployeeCreateTests
 
         var identityService = new EmployeeIdentityService(orgDb, identityDb);
         var useCase = new CreateEmployeeUseCase(identityService);
+        var getEmployeesUseCase = new GetEmployeesUseCase(identityService);
 
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
@@ -692,7 +696,7 @@ public class EmployeeCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(useCase, currentUserService)
+        var controller = new EmployeesController(useCase, getEmployeesUseCase, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };

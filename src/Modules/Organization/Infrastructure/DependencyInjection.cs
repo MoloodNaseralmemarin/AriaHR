@@ -6,6 +6,7 @@ using AriaHR.Modules.Organization.Application.Options;
 using AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
 using AriaHR.Modules.Organization.Application.UseCases.GenerateQrCode;
 using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
+using AriaHR.Modules.Organization.Application.UseCases.GetEmployees;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentActivities;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
@@ -50,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeIdentityService, EmployeeIdentityService>();
         services.AddScoped<ICreateOrganizationUseCase, CreateOrganizationUseCase>();
         services.AddScoped<ICreateEmployeeUseCase, CreateEmployeeUseCase>();
+        services.AddScoped<IGetEmployeesUseCase, GetEmployeesUseCase>();
         services.AddScoped<ICreateWorkLocationUseCase, CreateWorkLocationUseCase>();
         services.AddScoped<IGenerateQrCodeUseCase, GenerateQrCodeUseCase>();
         services.AddScoped<IGetOrganizationsDashboardSummaryUseCase, GetOrganizationsDashboardSummaryUseCase>();
