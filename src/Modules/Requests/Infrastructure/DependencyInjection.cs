@@ -43,7 +43,7 @@ public static class DependencyInjection
     {
         services.AddScoped<ILeaveRequestRepository, LeaveRequestRepository>();
         services.AddScoped<IMissionRequestRepository, MissionRequestRepository>();
-        services.AddScoped<ILeaveTypeRepository, LeaveTypeRepository>();
+        services.AddScoped<ILeaveCategoryRepository, LeaveCategoryRepository>();
         services.AddScoped<ILeaveBalanceRepository, LeaveBalanceRepository>();
 
         services.AddScoped<ICreateLeaveRequestUseCase, CreateLeaveRequestUseCase>();

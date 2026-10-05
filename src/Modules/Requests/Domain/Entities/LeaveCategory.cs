@@ -3,9 +3,9 @@ using AriaHR.Shared;
 namespace AriaHR.Modules.Requests.Domain.Entities;
 
 /// <summary>
-/// LeaveType entity representing types of available leave (e.g., Annual, Sick).
+/// LeaveCategory entity representing categories of available leave (e.g., Annual, Sick).
 /// </summary>
-public class LeaveType : BaseEntity
+public class LeaveCategory : BaseEntity
 {
     public Guid OrganizationId { get; set; }
     public string Name { get; set; } = string.Empty;

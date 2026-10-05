@@ -11,8 +11,8 @@ public sealed class RequestsDbContext : DbContext
     {
     }
 
-    public DbSet<LeaveType> LeaveTypes =>
-        Set<LeaveType>();
+    public DbSet<LeaveCategory> LeaveCategories =>
+        Set<LeaveCategory>();
 
     public DbSet<LeaveBalance> LeaveBalances =>
         Set<LeaveBalance>();
