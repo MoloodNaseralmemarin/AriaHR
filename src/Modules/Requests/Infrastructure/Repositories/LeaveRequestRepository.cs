@@ -1,5 +1,6 @@
 using AriaHR.Modules.Requests.Application.Repositories;
 using AriaHR.Modules.Requests.Domain.Entities;
+using AriaHR.Modules.Requests.Domain.Enums;
 using AriaHR.Modules.Requests.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,69 +17,69 @@ public class LeaveRequestRepository : ILeaveRequestRepository
 
     public async Task AddAsync(LeaveRequest leaveRequest, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(leaveRequest);
         await _dbContext.LeaveRequests.AddAsync(leaveRequest, cancellationToken);
     }
 
     public async Task<LeaveRequest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbContext.LeaveRequests
-            .AsNoTracking()
-            .Include(r => r.LeaveType)
-            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted, cancellationToken);
     }
 
     public async Task<IReadOnlyList<LeaveRequest>> GetByEmployeeIdAsync(Guid employeeId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.LeaveRequests
             .AsNoTracking()
-            .Include(r => r.LeaveType)
-            .Where(r => r.EmployeeId == employeeId)
-            .OrderByDescending(r => r.CreatedAt)
+            .Where(r => r.EmployeeId == employeeId && !r.IsDeleted)
+            .OrderByDescending(r => r.CreatedAtUtc)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<LeaveRequest>> GetPendingRequestsAsync(Guid organizationId, CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.LeaveRequests
-            .AsNoTracking()
-            .Include(r => r.LeaveType)
-            .Where(r => r.OrganizationId == organizationId && r.Status == "Pending")
-            .OrderByDescending(r => r.CreatedAt)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<LeaveRequest>> GetPendingRequestsForApproverAsync(Guid approverId, CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.LeaveRequests
-            .AsNoTracking()
-            .Include(r => r.LeaveType)
-            .Where(r => r.ApproverId == approverId && r.Status == "Pending")
-            .OrderByDescending(r => r.CreatedAt)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<LeaveRequest>> GetApprovedRequestsByDateRangeAsync(
+    public async Task<IReadOnlyList<LeaveRequest>> GetOrganizationRequestsAsync(
         Guid organizationId,
-        DateOnly startDate,
-        DateOnly endDate,
+        RequestStatus? status = null,
+        Guid? employeeId = null,
+        DateOnly? from = null,
+        DateOnly? to = null,
         CancellationToken cancellationToken = default)
     {
-        return await _dbContext.LeaveRequests
+        var query = _dbContext.LeaveRequests
             .AsNoTracking()
-            .Include(r => r.LeaveType)
-            .Where(r => r.OrganizationId == organizationId
-                        && r.Status == "Approved"
-                        && r.FromDate <= endDate
-                        && r.ToDate >= startDate)
-            .OrderBy(r => r.FromDate)
+            .Where(r => r.OrganizationId == organizationId && !r.IsDeleted);
+
+        if (status.HasValue)
+        {
+            query = query.Where(r => r.Status == status.Value);
+        }
+
+        if (employeeId.HasValue && employeeId.Value != Guid.Empty)
+        {
+            query = query.Where(r => r.EmployeeId == employeeId.Value);
+        }
+
+        if (from.HasValue)
+        {
+            query = query.Where(r => r.Date >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            query = query.Where(r => r.Date <= to.Value);
+        }
+
+        return await query
+            .OrderByDescending(r => r.CreatedAtUtc)
             .ToListAsync(cancellationToken);
     }
 
     public Task UpdateAsync(LeaveRequest leaveRequest, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(leaveRequest);
         _dbContext.LeaveRequests.Update(leaveRequest);
         return Task.CompletedTask;
+    }
+
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

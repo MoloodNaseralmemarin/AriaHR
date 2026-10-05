@@ -13,6 +13,7 @@ using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCoun
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
 using AriaHR.Modules.Organization.Infrastructure.Services;
+using AriaHR.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IQrCodeRepository, QrCodeRepository>();
         services.AddScoped<IOrganizationManagerIdentityService, OrganizationManagerIdentityService>();
         services.AddScoped<IEmployeeIdentityService, EmployeeIdentityService>();
+        services.AddScoped<IEmployeeLookupService, EmployeeLookupService>();
         services.AddScoped<ICreateOrganizationUseCase, CreateOrganizationUseCase>();
         services.AddScoped<ICreateEmployeeUseCase, CreateEmployeeUseCase>();
         services.AddScoped<IGetEmployeesUseCase, GetEmployeesUseCase>();

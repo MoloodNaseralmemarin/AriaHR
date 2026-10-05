@@ -17,10 +17,5 @@ public sealed class LeaveTypeConfiguration : IEntityTypeConfiguration<LeaveType>
             .WithOne(x => x.LeaveType)
             .HasForeignKey(x => x.LeaveTypeId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasMany(x => x.LeaveRequests)
-            .WithOne(x => x.LeaveType)
-            .HasForeignKey(x => x.LeaveTypeId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }
