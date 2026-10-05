@@ -1,4 +1,6 @@
+using AriaHR.Modules.Requests.Domain.Enums;
 using AriaHR.Shared;
+using LeaveTypeEnum = AriaHR.Modules.Requests.Domain.Enums.LeaveType;
 
 namespace AriaHR.Modules.Requests.Domain.Entities;
 
@@ -9,21 +11,13 @@ public class LeaveRequest : BaseEntity
 {
     public Guid OrganizationId { get; set; }
     public Guid EmployeeId { get; set; }
-
-    public Guid LeaveTypeId { get; set; }
-    public LeaveType? LeaveType { get; set; }
-
-    public DateOnly FromDate { get; set; }
-    public DateOnly ToDate { get; set; }
-    public TimeOnly? FromTime { get; set; }
-    public TimeOnly? ToTime { get; set; }
-    public decimal TotalDays { get; set; }
+    public LeaveTypeEnum LeaveType { get; set; }
+    public DateOnly Date { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
     public string? Reason { get; set; }
-    public string? AttachmentPath { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public Guid? ApproverId { get; set; }
+    public RequestStatus Status { get; set; } = RequestStatus.Pending;
+    public string? RejectedReason { get; set; }
     public DateTime? ApprovedAt { get; set; }
-    public string? RejectionReason { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public Guid? ApprovedBy { get; set; }
 }
