@@ -86,7 +86,7 @@ public class LeaveRequestsController : ControllerBase
                 Detail = ex.Message
             });
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
             return Forbid();
         }
