@@ -1,11 +1,15 @@
 using AriaHR.Modules.Requests.Application.Repositories;
+using AriaHR.Modules.Requests.Application.UseCases.ActivateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.ApproveLeaveRequest;
 using AriaHR.Modules.Requests.Application.UseCases.CancelLeaveRequest;
+using AriaHR.Modules.Requests.Application.UseCases.CreateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.CreateLeaveRequest;
+using AriaHR.Modules.Requests.Application.UseCases.DeactivateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.GetLeaveRequestById;
 using AriaHR.Modules.Requests.Application.UseCases.GetMyLeaveRequests;
 using AriaHR.Modules.Requests.Application.UseCases.GetOrganizationLeaveRequests;
 using AriaHR.Modules.Requests.Application.UseCases.RejectLeaveRequest;
+using AriaHR.Modules.Requests.Application.UseCases.UpdateLeaveCategory;
 using AriaHR.Modules.Requests.Infrastructure.Persistence;
 using AriaHR.Modules.Requests.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -53,6 +57,11 @@ public static class DependencyInjection
         services.AddScoped<IGetOrganizationLeaveRequestsUseCase, GetOrganizationLeaveRequestsUseCase>();
         services.AddScoped<IApproveLeaveRequestUseCase, ApproveLeaveRequestUseCase>();
         services.AddScoped<IRejectLeaveRequestUseCase, RejectLeaveRequestUseCase>();
+
+        services.AddScoped<ICreateLeaveCategoryUseCase, CreateLeaveCategoryUseCase>();
+        services.AddScoped<IUpdateLeaveCategoryUseCase, UpdateLeaveCategoryUseCase>();
+        services.AddScoped<IActivateLeaveCategoryUseCase, ActivateLeaveCategoryUseCase>();
+        services.AddScoped<IDeactivateLeaveCategoryUseCase, DeactivateLeaveCategoryUseCase>();
 
         return services;
     }
