@@ -13,6 +13,9 @@ public sealed class LeaveTypeConfiguration : IEntityTypeConfiguration<LeaveType>
         builder.Property(x => x.Name)
             .IsRequired();
 
+        builder.HasIndex(x => new { x.OrganizationId, x.Name })
+            .HasFilter("[IsDeleted] = 0");
+
         builder.HasMany(x => x.LeaveBalances)
             .WithOne(x => x.LeaveType)
             .HasForeignKey(x => x.LeaveTypeId)
