@@ -1,6 +1,6 @@
 using AriaHR.Modules.Requests.Application.DTOs;
 using AriaHR.Modules.Requests.Application.Repositories;
-using AriaHR.Modules.Requests.Application.Services;
+using AriaHR.Shared.Services;
 
 namespace AriaHR.Modules.Requests.Application.UseCases.GetMyLeaveRequests;
 

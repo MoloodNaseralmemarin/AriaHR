@@ -1,6 +1,6 @@
 using AriaHR.Modules.Requests.Application.DTOs;
 using AriaHR.Modules.Requests.Application.Repositories;
-using AriaHR.Modules.Requests.Application.Services;
+using AriaHR.Shared.Services;
 using AriaHR.Modules.Requests.Domain.Entities;
 using AriaHR.Modules.Requests.Domain.Enums;
 using LeaveTypeEnum = AriaHR.Modules.Requests.Domain.Enums.LeaveType;

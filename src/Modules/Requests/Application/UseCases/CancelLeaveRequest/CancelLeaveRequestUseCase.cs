@@ -1,5 +1,5 @@
 using AriaHR.Modules.Requests.Application.Repositories;
-using AriaHR.Modules.Requests.Application.Services;
+using AriaHR.Shared.Services;
 using AriaHR.Modules.Requests.Domain.Enums;
 
 namespace AriaHR.Modules.Requests.Application.UseCases.CancelLeaveRequest;
