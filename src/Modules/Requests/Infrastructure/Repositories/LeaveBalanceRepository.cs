@@ -20,17 +20,17 @@ public class LeaveBalanceRepository : ILeaveBalanceRepository
         await _dbContext.LeaveBalances.AddAsync(leaveBalance, cancellationToken);
     }
 
-    public async Task<LeaveBalance?> GetByEmployeeAndLeaveTypeAsync(
+    public async Task<LeaveBalance?> GetByEmployeeAndLeaveCategoryAsync(
         Guid employeeId,
-        Guid leaveTypeId,
+        Guid leaveCategoryId,
         int year,
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.LeaveBalances
             .AsNoTracking()
-            .Include(b => b.LeaveType)
+            .Include(b => b.LeaveCategory)
             .FirstOrDefaultAsync(
-                b => b.EmployeeId == employeeId && b.LeaveTypeId == leaveTypeId && b.Year == year,
+                b => b.EmployeeId == employeeId && b.LeaveCategoryId == leaveCategoryId && b.Year == year,
                 cancellationToken);
     }
 
@@ -41,7 +41,7 @@ public class LeaveBalanceRepository : ILeaveBalanceRepository
     {
         return await _dbContext.LeaveBalances
             .AsNoTracking()
-            .Include(b => b.LeaveType)
+            .Include(b => b.LeaveCategory)
             .Where(b => b.EmployeeId == employeeId && b.Year == year)
             .ToListAsync(cancellationToken);
     }

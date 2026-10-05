@@ -10,8 +10,8 @@ public class LeaveBalance : BaseEntity
     public Guid OrganizationId { get; set; }
     public Guid EmployeeId { get; set; }
 
-    public Guid LeaveTypeId { get; set; }
-    public LeaveType? LeaveType { get; set; }
+    public Guid LeaveCategoryId { get; set; }
+    public LeaveCategory? LeaveCategory { get; set; }
 
     public int Year { get; set; }
     public decimal TotalDays { get; set; }
