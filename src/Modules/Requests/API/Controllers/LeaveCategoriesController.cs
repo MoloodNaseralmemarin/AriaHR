@@ -2,6 +2,7 @@ using AriaHR.Modules.Requests.Application.DTOs;
 using AriaHR.Modules.Requests.Application.UseCases.ActivateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.CreateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.DeactivateLeaveCategory;
+using AriaHR.Modules.Requests.Application.UseCases.GetLeaveCategories;
 using AriaHR.Modules.Requests.Application.UseCases.UpdateLeaveCategory;
 using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,7 @@ namespace AriaHR.Modules.Requests.API.Controllers;
 public class LeaveCategoriesController : ControllerBase
 {
     private readonly ICreateLeaveCategoryUseCase _createLeaveCategoryUseCase;
+    private readonly IGetLeaveCategoriesUseCase _getLeaveCategoriesUseCase;
     private readonly IUpdateLeaveCategoryUseCase _updateLeaveCategoryUseCase;
     private readonly IActivateLeaveCategoryUseCase _activateLeaveCategoryUseCase;
     private readonly IDeactivateLeaveCategoryUseCase _deactivateLeaveCategoryUseCase;
@@ -23,16 +25,81 @@ public class LeaveCategoriesController : ControllerBase
 
     public LeaveCategoriesController(
         ICreateLeaveCategoryUseCase createLeaveCategoryUseCase,
+        IGetLeaveCategoriesUseCase getLeaveCategoriesUseCase,
         IUpdateLeaveCategoryUseCase updateLeaveCategoryUseCase,
         IActivateLeaveCategoryUseCase activateLeaveCategoryUseCase,
         IDeactivateLeaveCategoryUseCase deactivateLeaveCategoryUseCase,
         ICurrentUserService currentUserService)
     {
         _createLeaveCategoryUseCase = createLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(createLeaveCategoryUseCase));
+        _getLeaveCategoriesUseCase = getLeaveCategoriesUseCase ?? throw new ArgumentNullException(nameof(getLeaveCategoriesUseCase));
         _updateLeaveCategoryUseCase = updateLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(updateLeaveCategoryUseCase));
         _activateLeaveCategoryUseCase = activateLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(activateLeaveCategoryUseCase));
         _deactivateLeaveCategoryUseCase = deactivateLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(deactivateLeaveCategoryUseCase));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
+    }
+
+    [HttpGet("/api/requests/leave-categories")]
+    [Authorize(Roles = "CenterManager,SystemAdmin,Employee")]
+    [ProducesResponseType(typeof(IEnumerable<LeaveCategoryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetLeaveCategories(
+        [FromQuery] Guid? organizationId,
+        CancellationToken cancellationToken)
+    {
+        Guid userId = _currentUserService.UserId;
+        if (userId == Guid.Empty)
+        {
+            return Unauthorized();
+        }
+
+        Guid targetOrgId;
+
+        if (!_currentUserService.IsInRole("SystemAdmin"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
+            {
+                return Forbid();
+            }
+
+            if (organizationId.HasValue && organizationId.Value != Guid.Empty && organizationId.Value != userOrgId.Value)
+            {
+                return Forbid();
+            }
+
+            targetOrgId = userOrgId.Value;
+        }
+        else
+        {
+            targetOrgId = _currentUserService.ResolveOrganizationId(organizationId);
+            if (targetOrgId == Guid.Empty)
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Title = "سازمان مشخص نشده است",
+                    Detail = "شناسه سازمان معتبر در درخواست یا توکن یافت نشد."
+                });
+            }
+        }
+
+        try
+        {
+            var result = await _getLeaveCategoriesUseCase.ExecuteAsync(targetOrgId, cancellationToken);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ورودی نامعتبر",
+                Detail = ex.Message
+            });
+        }
     }
 
     [HttpPost]
