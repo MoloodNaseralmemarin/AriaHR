@@ -28,6 +28,15 @@ public class LeaveCategoryRepository : ILeaveCategoryRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<LeaveCategory>> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.LeaveCategories
+            .AsNoTracking()
+            .Where(lt => lt.OrganizationId == organizationId && !lt.IsDeleted)
+            .OrderBy(lt => lt.Name)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<LeaveCategory?> GetByNameAndOrganizationAsync(string name, Guid organizationId, CancellationToken cancellationToken = default)
     {
         var trimmedName = name.Trim();

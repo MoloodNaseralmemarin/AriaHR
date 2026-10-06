@@ -5,6 +5,7 @@ using AriaHR.Modules.Requests.Application.UseCases.CancelLeaveRequest;
 using AriaHR.Modules.Requests.Application.UseCases.CreateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.CreateLeaveRequest;
 using AriaHR.Modules.Requests.Application.UseCases.DeactivateLeaveCategory;
+using AriaHR.Modules.Requests.Application.UseCases.GetLeaveCategories;
 using AriaHR.Modules.Requests.Application.UseCases.GetLeaveRequestById;
 using AriaHR.Modules.Requests.Application.UseCases.GetMyLeaveRequests;
 using AriaHR.Modules.Requests.Application.UseCases.GetOrganizationLeaveRequests;
@@ -59,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<IRejectLeaveRequestUseCase, RejectLeaveRequestUseCase>();
 
         services.AddScoped<ICreateLeaveCategoryUseCase, CreateLeaveCategoryUseCase>();
+        services.AddScoped<IGetLeaveCategoriesUseCase, GetLeaveCategoriesUseCase>();
         services.AddScoped<IUpdateLeaveCategoryUseCase, UpdateLeaveCategoryUseCase>();
         services.AddScoped<IActivateLeaveCategoryUseCase, ActivateLeaveCategoryUseCase>();
         services.AddScoped<IDeactivateLeaveCategoryUseCase, DeactivateLeaveCategoryUseCase>();

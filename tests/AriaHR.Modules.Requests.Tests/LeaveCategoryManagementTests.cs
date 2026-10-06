@@ -1,11 +1,17 @@
+using System.Security.Claims;
+using AriaHR.Modules.Requests.API.Controllers;
 using AriaHR.Modules.Requests.Application.DTOs;
 using AriaHR.Modules.Requests.Application.UseCases.ActivateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.CreateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.DeactivateLeaveCategory;
+using AriaHR.Modules.Requests.Application.UseCases.GetLeaveCategories;
 using AriaHR.Modules.Requests.Application.UseCases.UpdateLeaveCategory;
 using AriaHR.Modules.Requests.Domain.Entities;
 using AriaHR.Modules.Requests.Infrastructure.Persistence;
 using AriaHR.Modules.Requests.Infrastructure.Repositories;
+using AriaHR.Shared.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -235,5 +241,198 @@ public class LeaveCategoryManagementTests
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             activateUseCase.ExecuteAsync(created.Id, userId, userOrganizationId: orgB, isSystemAdmin: false));
+    }
+
+    [Fact]
+    public async Task GetLeaveCategories_ReturnsActiveAndInactiveCategories_OrderedByNameAscending()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var getUseCase = new GetLeaveCategoriesUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var catB = new LeaveCategory { Id = Guid.NewGuid(), OrganizationId = orgId, Name = "B - مرخصی استعلاجی", IsActive = false, IsDeleted = false };
+        var catA = new LeaveCategory { Id = Guid.NewGuid(), OrganizationId = orgId, Name = "A - مرخصی استحقاقی", IsActive = true, IsDeleted = false };
+        var catC = new LeaveCategory { Id = Guid.NewGuid(), OrganizationId = orgId, Name = "C - مرخصی ساعتی", IsActive = true, IsDeleted = false };
+
+        dbContext.LeaveCategories.AddRange(catB, catA, catC);
+        await dbContext.SaveChangesAsync();
+
+        var result = (await getUseCase.ExecuteAsync(orgId)).ToList();
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal("A - مرخصی استحقاقی", result[0].Name);
+        Assert.Equal("B - مرخصی استعلاجی", result[1].Name);
+        Assert.Equal("C - مرخصی ساعتی", result[2].Name);
+        Assert.False(result[1].IsActive); // Contains inactive category
+    }
+
+    [Fact]
+    public async Task GetLeaveCategories_ExcludesDeletedCategoriesAndOtherOrgCategories()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var getUseCase = new GetLeaveCategoriesUseCase(repository);
+
+        var orgA = Guid.NewGuid();
+        var orgB = Guid.NewGuid();
+
+        var catOrgA = new LeaveCategory { Id = Guid.NewGuid(), OrganizationId = orgA, Name = "مرخصی Org A", IsActive = true, IsDeleted = false };
+        var catOrgADeleted = new LeaveCategory { Id = Guid.NewGuid(), OrganizationId = orgA, Name = "مرخصی حذف شده", IsActive = true, IsDeleted = true };
+        var catOrgB = new LeaveCategory { Id = Guid.NewGuid(), OrganizationId = orgB, Name = "مرخصی Org B", IsActive = true, IsDeleted = false };
+
+        dbContext.LeaveCategories.AddRange(catOrgA, catOrgADeleted, catOrgB);
+        await dbContext.SaveChangesAsync();
+
+        var resultOrgA = (await getUseCase.ExecuteAsync(orgA)).ToList();
+
+        Assert.Single(resultOrgA);
+        Assert.Equal(catOrgA.Id, resultOrgA[0].Id);
+    }
+
+    [Fact]
+    public async Task GetLeaveCategoriesUseCase_EmptyOrgId_ThrowsArgumentException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var getUseCase = new GetLeaveCategoriesUseCase(repository);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => getUseCase.ExecuteAsync(Guid.Empty));
+    }
+
+    [Fact]
+    public async Task Controller_GetLeaveCategories_AsEmployee_ReturnsOrgLeaveCategories()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var getUseCase = new GetLeaveCategoriesUseCase(repository);
+        var createUseCase = new CreateLeaveCategoryUseCase(repository);
+        var updateUseCase = new UpdateLeaveCategoryUseCase(repository);
+        var activateUseCase = new ActivateLeaveCategoryUseCase(repository);
+        var deactivateUseCase = new DeactivateLeaveCategoryUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        await createUseCase.ExecuteAsync(new CreateLeaveCategoryRequest { Name = "مرخصی سالانه" }, orgId, userId);
+
+        var httpContext = new DefaultHttpContext();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Role, "Employee"),
+            new Claim("organization_id", orgId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var currentUserService = new CurrentUserService(httpContextAccessor);
+
+        var controller = new LeaveCategoriesController(
+            createUseCase,
+            getUseCase,
+            updateUseCase,
+            activateUseCase,
+            deactivateUseCase,
+            currentUserService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        var actionResult = await controller.GetLeaveCategories(null, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryDto>>(okResult.Value);
+        Assert.Single(dtos);
+        Assert.Equal("مرخصی سالانه", dtos.First().Name);
+    }
+
+    [Fact]
+    public async Task Controller_GetLeaveCategories_AsCenterManagerAccessingOtherOrg_ReturnsForbid()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var getUseCase = new GetLeaveCategoriesUseCase(repository);
+        var createUseCase = new CreateLeaveCategoryUseCase(repository);
+        var updateUseCase = new UpdateLeaveCategoryUseCase(repository);
+        var activateUseCase = new ActivateLeaveCategoryUseCase(repository);
+        var deactivateUseCase = new DeactivateLeaveCategoryUseCase(repository);
+
+        var myOrgId = Guid.NewGuid();
+        var otherOrgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        var httpContext = new DefaultHttpContext();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Role, "CenterManager"),
+            new Claim("organization_id", myOrgId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var currentUserService = new CurrentUserService(httpContextAccessor);
+
+        var controller = new LeaveCategoriesController(
+            createUseCase,
+            getUseCase,
+            updateUseCase,
+            activateUseCase,
+            deactivateUseCase,
+            currentUserService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        var actionResult = await controller.GetLeaveCategories(otherOrgId, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(actionResult);
+    }
+
+    [Fact]
+    public async Task Controller_GetLeaveCategories_AsSystemAdminWithOrgParam_ReturnsRequestedOrgCategories()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var getUseCase = new GetLeaveCategoriesUseCase(repository);
+        var createUseCase = new CreateLeaveCategoryUseCase(repository);
+        var updateUseCase = new UpdateLeaveCategoryUseCase(repository);
+        var activateUseCase = new ActivateLeaveCategoryUseCase(repository);
+        var deactivateUseCase = new DeactivateLeaveCategoryUseCase(repository);
+
+        var targetOrgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        await createUseCase.ExecuteAsync(new CreateLeaveCategoryRequest { Name = "مرخصی ادمین" }, targetOrgId, userId);
+
+        var httpContext = new DefaultHttpContext();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Role, "SystemAdmin")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var currentUserService = new CurrentUserService(httpContextAccessor);
+
+        var controller = new LeaveCategoriesController(
+            createUseCase,
+            getUseCase,
+            updateUseCase,
+            activateUseCase,
+            deactivateUseCase,
+            currentUserService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        var actionResult = await controller.GetLeaveCategories(targetOrgId, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryDto>>(okResult.Value);
+        Assert.Single(dtos);
+        Assert.Equal("مرخصی ادمین", dtos.First().Name);
     }
 }
