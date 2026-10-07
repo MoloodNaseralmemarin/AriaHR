@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AriaHR.Modules.Organization.Application.DTOs;
+using AriaHR.Modules.Organization.Application.Services;
 using AriaHR.Modules.Organization.Application.UseCases.CreateEmployee;
 using AriaHR.Modules.Organization.Application.UseCases.GetEmployees;
 using AriaHR.Shared.Services;
@@ -11,24 +12,28 @@ namespace AriaHR.Modules.Organization.API.Controllers;
 
 [ApiController]
 [Route("api/organizations/employees")]
-[Authorize(Roles = "CenterManager,SystemAdmin")]
+[Authorize(Roles = "CenterManager,SystemAdmin,Employee")]
 public class EmployeesController : ControllerBase
 {
     private readonly ICreateEmployeeUseCase _createEmployeeUseCase;
     private readonly IGetEmployeesUseCase _getEmployeesUseCase;
+    private readonly IEmployeeIdentityService _employeeIdentityService;
     private readonly ICurrentUserService _currentUserService;
 
     public EmployeesController(
         ICreateEmployeeUseCase createEmployeeUseCase,
         IGetEmployeesUseCase getEmployeesUseCase,
+        IEmployeeIdentityService employeeIdentityService,
         ICurrentUserService currentUserService)
     {
         _createEmployeeUseCase = createEmployeeUseCase ?? throw new ArgumentNullException(nameof(createEmployeeUseCase));
         _getEmployeesUseCase = getEmployeesUseCase ?? throw new ArgumentNullException(nameof(getEmployeesUseCase));
+        _employeeIdentityService = employeeIdentityService ?? throw new ArgumentNullException(nameof(employeeIdentityService));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
     }
 
     [HttpGet]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(IEnumerable<EmployeeDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -114,12 +119,14 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost]
+    [Consumes("multipart/form-data")]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> CreateEmployee(
-        [FromBody] CreateEmployeeRequest request,
+        [FromForm] CreateEmployeeRequest request,
         CancellationToken cancellationToken)
     {
         if (request == null)
@@ -203,5 +210,62 @@ public class EmployeesController : ControllerBase
                 Detail = ex.Message
             });
         }
+    }
+
+    [HttpGet("{employeeId:guid}/profile-image")]
+    [Authorize(Roles = "CenterManager,SystemAdmin,Employee")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProfileImage(
+        [FromRoute] Guid employeeId,
+        CancellationToken cancellationToken)
+    {
+        Guid currentUserId = _currentUserService.UserId;
+        if (currentUserId == Guid.Empty)
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out currentUserId))
+            {
+                return Unauthorized();
+            }
+        }
+
+        var imageResult = await _employeeIdentityService.GetEmployeeProfileImageAsync(employeeId, cancellationToken);
+        if (imageResult == null)
+        {
+            return NotFound();
+        }
+
+        if (_currentUserService.IsInRole("SystemAdmin"))
+        {
+            // SystemAdmin allowed across all organizations
+        }
+        else if (_currentUserService.IsInRole("CenterManager"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty || userOrgId.Value != imageResult.OrganizationId)
+            {
+                return Forbid();
+            }
+        }
+        else if (_currentUserService.IsInRole("Employee"))
+        {
+            var userOrgId = _currentUserService.OrganizationId;
+            bool isOwnProfile = imageResult.UserId == currentUserId;
+            bool isSameOrganization = userOrgId.HasValue && userOrgId.Value == imageResult.OrganizationId;
+
+            if (!isOwnProfile && !isSameOrganization)
+            {
+                return Forbid();
+            }
+        }
+        else
+        {
+            return Forbid();
+        }
+
+        return File(imageResult.ImageBytes, imageResult.ContentType, imageResult.FileName);
     }
 }

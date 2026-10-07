@@ -180,7 +180,7 @@ public class EmployeeListTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -219,7 +219,7 @@ public class EmployeeListTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -252,7 +252,7 @@ public class EmployeeListTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -287,7 +287,7 @@ public class EmployeeListTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -321,7 +321,7 @@ public class EmployeeListTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(createEmployeeUseCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };

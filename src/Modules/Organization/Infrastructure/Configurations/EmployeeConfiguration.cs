@@ -15,5 +15,16 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
 
         builder.Property(x => x.NationalCode)
             .IsRequired();
+
+        builder.Property(x => x.ProfileImage)
+            .IsRequired(false);
+
+        builder.Property(x => x.ProfileImageContentType)
+            .HasMaxLength(100)
+            .IsRequired(false);
+
+        builder.Property(x => x.ProfileImageFileName)
+            .HasMaxLength(255)
+            .IsRequired(false);
     }
 }

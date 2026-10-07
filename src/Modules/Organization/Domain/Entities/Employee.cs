@@ -28,5 +28,7 @@ public class Employee : BaseEntity
 
     public bool IsActive { get; set; }
 
-    public string? ProfileImagePath { get; set; }
+    public byte[]? ProfileImage { get; set; }
+    public string? ProfileImageContentType { get; set; }
+    public string? ProfileImageFileName { get; set; }
 }

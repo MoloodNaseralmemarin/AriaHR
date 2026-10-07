@@ -13,4 +13,8 @@ public interface IEmployeeIdentityService
     Task<IEnumerable<EmployeeDto>> GetEmployeesByOrganizationAsync(
         Guid organizationId,
         CancellationToken cancellationToken = default);
+
+    Task<EmployeeProfileImageResult?> GetEmployeeProfileImageAsync(
+        Guid employeeId,
+        CancellationToken cancellationToken = default);
 }

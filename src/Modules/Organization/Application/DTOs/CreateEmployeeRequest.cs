@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace AriaHR.Modules.Organization.Application.DTOs;
 
 public class CreateEmployeeRequest
@@ -11,6 +13,6 @@ public class CreateEmployeeRequest
     public DateOnly BirthDate { get; set; }
     public DateOnly HireDate { get; set; }
     public string? Gender { get; set; }
-    public string? ProfileImagePath { get; set; }
+    public IFormFile? ProfileImage { get; set; }
     public Guid? OrganizationId { get; set; }
 }
