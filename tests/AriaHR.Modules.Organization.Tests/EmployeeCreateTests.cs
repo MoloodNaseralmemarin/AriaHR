@@ -160,6 +160,59 @@ public class EmployeeCreateTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithEmptyProfileImageFile_StoresNullAndReturnsNullProfileImageUrl()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(identityService);
+
+        var emptyFile = CreateMockFormFile(Array.Empty<byte>(), "empty.jpg", "image/jpeg");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "John",
+            LastName = "Empty",
+            PhoneNumber = "09120001199",
+            Email = "john.empty@example.com",
+            PersonnelCode = "EMP-EMPTY",
+            NationalCode = "1234567899",
+            BirthDate = new DateOnly(1990, 5, 15),
+            HireDate = new DateOnly(2022, 1, 10),
+            Gender = "Male",
+            ProfileImage = emptyFile
+        };
+
+        var creatorId = Guid.NewGuid();
+
+        // Act
+        var result = await useCase.ExecuteAsync(request, orgId, creatorId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Null(result.ProfileImageUrl);
+
+        var dbEmployee = await orgDb.Employees.FirstOrDefaultAsync(e => e.Id == result.Id);
+        Assert.NotNull(dbEmployee);
+        Assert.Null(dbEmployee.ProfileImage);
+        Assert.Null(dbEmployee.ProfileImageContentType);
+        Assert.Null(dbEmployee.ProfileImageFileName);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithValidJpegImage_StoresBinaryDataAndReturnsProfileImageUrl()
     {
         // Arrange
