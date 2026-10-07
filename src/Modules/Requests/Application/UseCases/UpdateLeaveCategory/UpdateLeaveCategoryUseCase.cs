@@ -52,6 +52,11 @@ public class UpdateLeaveCategoryUseCase : IUpdateLeaveCategoryUseCase
             throw new ArgumentException("نام دسته‌بندی مرخصی نمی‌تواند بیش از 200 کاراکتر باشد.", nameof(request.Name));
         }
 
+        if (request.MaxDaysPerYear.HasValue && request.MaxDaysPerYear.Value <= 0)
+        {
+            throw new ArgumentException("حداکثر روز مرخصی در سال باید بزرگتر از صفر باشد.", nameof(request.MaxDaysPerYear));
+        }
+
         var existingCategory = await _repository.GetByNameAndOrganizationAsync(trimmedName, category.OrganizationId, cancellationToken);
         if (existingCategory != null && existingCategory.Id != id)
         {
