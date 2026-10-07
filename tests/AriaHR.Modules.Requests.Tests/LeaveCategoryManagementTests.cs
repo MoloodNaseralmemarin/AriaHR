@@ -61,6 +61,122 @@ public class LeaveCategoryManagementTests
     }
 
     [Fact]
+    public async Task CreateLeaveCategory_NullMaxDaysPerYear_CreatesCategoryWithNullMaxDays()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var useCase = new CreateLeaveCategoryUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var request = new CreateLeaveCategoryRequest
+        {
+            Name = "مرخصی بدون محدودیت",
+            MaxDaysPerYear = null,
+            IsPaid = true,
+            RequiresAttachment = false
+        };
+
+        var result = await useCase.ExecuteAsync(request, orgId, userId);
+
+        Assert.NotNull(result);
+        Assert.Null(result.MaxDaysPerYear);
+
+        var dbCategory = await dbContext.LeaveCategories.FindAsync(result.Id);
+        Assert.NotNull(dbCategory);
+        Assert.Null(dbCategory.MaxDaysPerYear);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-10)]
+    public async Task CreateLeaveCategory_ZeroOrNegativeMaxDaysPerYear_ThrowsArgumentException(int invalidMaxDays)
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var useCase = new CreateLeaveCategoryUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var request = new CreateLeaveCategoryRequest
+        {
+            Name = "مرخصی نامعتبر",
+            MaxDaysPerYear = invalidMaxDays
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, orgId, userId));
+        Assert.Equal("حداکثر روز مرخصی در سال باید بزرگتر از صفر باشد. (Parameter 'MaxDaysPerYear')", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateLeaveCategory_NullMaxDaysPerYear_UpdatesCategoryToNullMaxDays()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var createUseCase = new CreateLeaveCategoryUseCase(repository);
+        var updateUseCase = new UpdateLeaveCategoryUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        var created = await createUseCase.ExecuteAsync(
+            new CreateLeaveCategoryRequest { Name = "مرخصی محدود", MaxDaysPerYear = 10 },
+            orgId,
+            userId);
+
+        var updateRequest = new UpdateLeaveCategoryRequest
+        {
+            Name = "مرخصی بدون محدودیت",
+            MaxDaysPerYear = null
+        };
+
+        var updated = await updateUseCase.ExecuteAsync(
+            created.Id,
+            updateRequest,
+            userId,
+            userOrganizationId: orgId,
+            isSystemAdmin: false);
+
+        Assert.Null(updated.MaxDaysPerYear);
+
+        var dbCategory = await dbContext.LeaveCategories.FindAsync(created.Id);
+        Assert.NotNull(dbCategory);
+        Assert.Null(dbCategory.MaxDaysPerYear);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-10)]
+    public async Task UpdateLeaveCategory_ZeroOrNegativeMaxDaysPerYear_ThrowsArgumentException(int invalidMaxDays)
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var createUseCase = new CreateLeaveCategoryUseCase(repository);
+        var updateUseCase = new UpdateLeaveCategoryUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        var created = await createUseCase.ExecuteAsync(
+            new CreateLeaveCategoryRequest { Name = "مرخصی تست", MaxDaysPerYear = 10 },
+            orgId,
+            userId);
+
+        var updateRequest = new UpdateLeaveCategoryRequest
+        {
+            Name = "مرخصی تست",
+            MaxDaysPerYear = invalidMaxDays
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            updateUseCase.ExecuteAsync(created.Id, updateRequest, userId, userOrganizationId: orgId, isSystemAdmin: false));
+
+        Assert.Equal("حداکثر روز مرخصی در سال باید بزرگتر از صفر باشد. (Parameter 'MaxDaysPerYear')", ex.Message);
+    }
+
+    [Fact]
     public async Task CreateLeaveCategory_DuplicateNameInSameOrg_ThrowsArgumentException()
     {
         using var dbContext = CreateDbContext();

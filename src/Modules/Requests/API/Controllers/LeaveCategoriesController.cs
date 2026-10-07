@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AriaHR.Modules.Requests.API.Controllers;
 
 [ApiController]
-[Route("api/leave-categories")]
+[Route("api/requests/leave-categories")]
 [Authorize(Roles = "CenterManager,SystemAdmin")]
 public class LeaveCategoriesController : ControllerBase
 {
@@ -39,7 +39,7 @@ public class LeaveCategoriesController : ControllerBase
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
     }
 
-    [HttpGet("/api/requests/leave-categories")]
+    [HttpGet]
     [Authorize(Roles = "CenterManager,SystemAdmin,Employee")]
     [ProducesResponseType(typeof(IEnumerable<LeaveCategoryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
