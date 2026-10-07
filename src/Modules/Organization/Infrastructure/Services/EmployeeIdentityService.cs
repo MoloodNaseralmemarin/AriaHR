@@ -2,6 +2,7 @@ using AriaHR.Modules.Identity.Application.Common;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Application.DTOs;
+using AriaHR.Modules.Organization.Application.Helpers;
 using AriaHR.Modules.Organization.Application.Services;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
@@ -79,6 +80,21 @@ public class EmployeeIdentityService : IEmployeeIdentityService
         if (request.HireDate < request.BirthDate)
         {
             throw new ArgumentException("تاریخ استخدام نمی‌تواند قبل از تاریخ تولد باشد.", nameof(request.HireDate));
+        }
+
+        // Validate profile image if provided
+        byte[]? profileImageData = null;
+        string? profileImageContentType = null;
+        string? profileImageFileName = null;
+
+        if (request.ProfileImage != null && request.ProfileImage.Length > 0)
+        {
+            await ProfileImageValidator.ValidateAsync(request.ProfileImage, cancellationToken);
+            using var ms = new MemoryStream();
+            await request.ProfileImage.CopyToAsync(ms, cancellationToken);
+            profileImageData = ms.ToArray();
+            profileImageContentType = request.ProfileImage.ContentType;
+            profileImageFileName = Path.GetFileName(request.ProfileImage.FileName);
         }
 
         // Pre-validations before starting transaction
@@ -180,7 +196,9 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 BirthDate = request.BirthDate,
                 HireDate = request.HireDate,
                 Gender = request.Gender?.Trim(),
-                ProfileImagePath = request.ProfileImagePath?.Trim(),
+                ProfileImage = profileImageData,
+                ProfileImageContentType = profileImageContentType,
+                ProfileImageFileName = profileImageFileName,
                 IsActive = true,
                 CreatedAtUtc = now,
                 CreatedByUserId = createdByUserId
@@ -212,7 +230,9 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 HireDate = employee.HireDate,
                 Gender = employee.Gender,
                 IsActive = employee.IsActive,
-                ProfileImagePath = employee.ProfileImagePath,
+                ProfileImageUrl = employee.ProfileImage != null
+                    ? $"/api/organizations/employees/{employee.Id}/profile-image"
+                    : null,
                 CreatedAtUtc = employee.CreatedAtUtc,
                 CreatedByUserId = employee.CreatedByUserId
             };
@@ -302,12 +322,45 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 HireDate = employee.HireDate,
                 Gender = employee.Gender,
                 IsActive = employee.IsActive,
-                ProfileImagePath = employee.ProfileImagePath,
+                ProfileImageUrl = employee.ProfileImage != null
+                    ? $"/api/organizations/employees/{employee.Id}/profile-image"
+                    : null,
                 CreatedAtUtc = employee.CreatedAtUtc,
                 CreatedByUserId = employee.CreatedByUserId
             });
         }
 
         return result;
+    }
+
+    public async Task<EmployeeProfileImageResult?> GetEmployeeProfileImageAsync(
+        Guid employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        if (employeeId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var employee = await _organizationDbContext.Employees
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == employeeId && !e.IsDeleted, cancellationToken);
+
+        if (employee == null || employee.ProfileImage == null || employee.ProfileImage.Length == 0)
+        {
+            return null;
+        }
+
+        return new EmployeeProfileImageResult
+        {
+            EmployeeId = employee.Id,
+            OrganizationId = employee.OrganizationId,
+            UserId = employee.UserId,
+            ImageBytes = employee.ProfileImage,
+            ContentType = string.IsNullOrWhiteSpace(employee.ProfileImageContentType)
+                ? "image/jpeg"
+                : employee.ProfileImageContentType,
+            FileName = employee.ProfileImageFileName
+        };
     }
 }

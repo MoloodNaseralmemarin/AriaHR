@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.API.Controllers;
@@ -11,10 +12,10 @@ using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Services;
 using AriaHR.Shared.Services;
-using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -82,8 +83,22 @@ public class EmployeeCreateTests
         }
     }
 
+    private IFormFile CreateMockFormFile(byte[] content, string fileName, string contentType)
+    {
+        var stream = new MemoryStream(content);
+        return new FormFile(stream, 0, content.Length, "ProfileImage", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = contentType
+        };
+    }
+
+    private static readonly byte[] JpegBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01 };
+    private static readonly byte[] PngBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D };
+    private static readonly byte[] WebpBytes = new byte[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F', 0, 0, 0, 0, (byte)'W', (byte)'E', (byte)'B', (byte)'P' };
+
     [Fact]
-    public async Task ExecuteAsync_WithValidRequest_CreatesUserAndEmployeeSuccessfully()
+    public async Task ExecuteAsync_WithValidRequestWithoutImage_CreatesUserAndEmployeeSuccessfully()
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
@@ -114,7 +129,7 @@ public class EmployeeCreateTests
             BirthDate = new DateOnly(1990, 5, 15),
             HireDate = new DateOnly(2022, 1, 10),
             Gender = "Male",
-            ProfileImagePath = "/images/emp001.png"
+            ProfileImage = null
         };
 
         var creatorId = Guid.NewGuid();
@@ -133,28 +148,463 @@ public class EmployeeCreateTests
         Assert.Equal(new DateOnly(2022, 1, 10), result.HireDate);
         Assert.Equal("Male", result.Gender);
         Assert.True(result.IsActive);
-        Assert.Equal("/images/emp001.png", result.ProfileImagePath);
+        Assert.Null(result.ProfileImageUrl);
         Assert.Equal(creatorId, result.CreatedByUserId);
 
-        // Verify User saved in Identity database
-        var createdUser = await identityDb.Users.FirstOrDefaultAsync(u => u.Id == result.UserId);
-        Assert.NotNull(createdUser);
-        Assert.Equal("John", createdUser.FirstName);
-        Assert.Equal("Doe", createdUser.LastName);
-        Assert.Equal("09120001122", createdUser.PhoneNumber);
-        Assert.Equal("john.doe@example.com", createdUser.Email);
-        Assert.Equal(orgId, createdUser.OrganizationId);
-
-        // Verify Employee role assigned to User
-        var employeeRole = await identityDb.Roles.FirstAsync(r => r.Name == "Employee");
-        var userRoleAssigned = await identityDb.UserRoles.AnyAsync(ur => ur.UserId == createdUser.Id && ur.RoleId == employeeRole.Id);
-        Assert.True(userRoleAssigned);
-
-        // Verify Employee saved in Organization database
+        // Verify Employee saved in Organization database with NULL image fields
         var dbEmployee = await orgDb.Employees.FirstOrDefaultAsync(e => e.Id == result.Id);
         Assert.NotNull(dbEmployee);
-        Assert.Equal(createdUser.Id, dbEmployee.UserId);
-        Assert.Equal(orgId, dbEmployee.OrganizationId);
+        Assert.Null(dbEmployee.ProfileImage);
+        Assert.Null(dbEmployee.ProfileImageContentType);
+        Assert.Null(dbEmployee.ProfileImageFileName);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithValidJpegImage_StoresBinaryDataAndReturnsProfileImageUrl()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var file = CreateMockFormFile(JpegBytes, "avatar.jpeg", "image/jpeg");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Jane",
+            LastName = "Doe",
+            PhoneNumber = "09120001133",
+            PersonnelCode = "EMP-JPEG",
+            NationalCode = "1234567891",
+            BirthDate = new DateOnly(1991, 1, 1),
+            HireDate = new DateOnly(2021, 1, 1),
+            ProfileImage = file
+        };
+
+        // Act
+        var result = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result.ProfileImageUrl);
+        Assert.Equal($"/api/organizations/employees/{result.Id}/profile-image", result.ProfileImageUrl);
+
+        var dbEmployee = await orgDb.Employees.FirstOrDefaultAsync(e => e.Id == result.Id);
+        Assert.NotNull(dbEmployee);
+        Assert.Equal(JpegBytes, dbEmployee.ProfileImage);
+        Assert.Equal("image/jpeg", dbEmployee.ProfileImageContentType);
+        Assert.Equal("avatar.jpeg", dbEmployee.ProfileImageFileName);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithValidPngImage_StoresBinaryDataSuccessfully()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var file = CreateMockFormFile(PngBytes, "avatar.png", "image/png");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Mark",
+            LastName = "Png",
+            PhoneNumber = "09120001144",
+            PersonnelCode = "EMP-PNG",
+            NationalCode = "1234567892",
+            BirthDate = new DateOnly(1992, 2, 2),
+            HireDate = new DateOnly(2022, 2, 2),
+            ProfileImage = file
+        };
+
+        // Act
+        var result = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result.ProfileImageUrl);
+        var dbEmployee = await orgDb.Employees.FirstOrDefaultAsync(e => e.Id == result.Id);
+        Assert.NotNull(dbEmployee);
+        Assert.Equal(PngBytes, dbEmployee.ProfileImage);
+        Assert.Equal("image/png", dbEmployee.ProfileImageContentType);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithValidWebPImage_StoresBinaryDataSuccessfully()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var file = CreateMockFormFile(WebpBytes, "avatar.webp", "image/webp");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Sarah",
+            LastName = "Webp",
+            PhoneNumber = "09120001155",
+            PersonnelCode = "EMP-WEBP",
+            NationalCode = "1234567893",
+            BirthDate = new DateOnly(1993, 3, 3),
+            HireDate = new DateOnly(2023, 3, 3),
+            ProfileImage = file
+        };
+
+        // Act
+        var result = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result.ProfileImageUrl);
+        var dbEmployee = await orgDb.Employees.FirstOrDefaultAsync(e => e.Id == result.Id);
+        Assert.NotNull(dbEmployee);
+        Assert.Equal(WebpBytes, dbEmployee.ProfileImage);
+        Assert.Equal("image/webp", dbEmployee.ProfileImageContentType);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithUnsupportedExtension_ThrowsArgumentException()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var file = CreateMockFormFile(Encoding.UTF8.GetBytes("pdf content"), "doc.pdf", "application/pdf");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Bad",
+            LastName = "File",
+            PhoneNumber = "09120001166",
+            PersonnelCode = "EMP-BAD",
+            NationalCode = "1234567894",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1),
+            ProfileImage = file
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
+        Assert.Contains("فرمت فایل تصویری پشتیبانی نمی‌شود", ex.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithFileExceeding2MB_ThrowsArgumentException()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        byte[] largeBytes = new byte[2 * 1024 * 1024 + 10]; // Exceeds 2MB
+        Array.Copy(JpegBytes, largeBytes, JpegBytes.Length);
+
+        var file = CreateMockFormFile(largeBytes, "large.jpg", "image/jpeg");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Large",
+            LastName = "File",
+            PhoneNumber = "09120001177",
+            PersonnelCode = "EMP-LARGE",
+            NationalCode = "1234567895",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1),
+            ProfileImage = file
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
+        Assert.Contains("بیشتر از ۲ مگابایت", ex.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithFakeExtensionWrongMagicBytes_ThrowsArgumentException()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var fakeBytes = Encoding.UTF8.GetBytes("This is plain text pretending to be a JPG");
+        var file = CreateMockFormFile(fakeBytes, "fake.jpg", "image/jpeg");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Fake",
+            LastName = "Jpg",
+            PhoneNumber = "09120001188",
+            PersonnelCode = "EMP-FAKE",
+            NationalCode = "1234567896",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1),
+            ProfileImage = file
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
+        Assert.Contains("محتوای فایل ارسالی با فرمت تصویر مطابقت ندارد", ex.Message);
+    }
+
+    [Fact]
+    public async Task Controller_GetProfileImage_ReturnsFileResultWithCorrectBytesAndContentType()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Hospital",
+            Code = "H1",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var file = CreateMockFormFile(JpegBytes, "myavatar.jpg", "image/jpeg");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Profile",
+            LastName = "User",
+            PhoneNumber = "09125554433",
+            PersonnelCode = "P-IMG-1",
+            NationalCode = "8877665544",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1),
+            ProfileImage = file
+        };
+
+        var createdEmp = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        var currentUserId = Guid.NewGuid();
+        var httpContext = new DefaultHttpContext();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+            new Claim(ClaimTypes.Role, "CenterManager"),
+            new Claim("organization_id", orgId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var currentUserService = new CurrentUserService(httpContextAccessor);
+
+        var createUseCase = new CreateEmployeeUseCase(identityService);
+        var getEmployeesUseCase = new GetEmployeesUseCase(identityService);
+
+        var controller = new EmployeesController(createUseCase, getEmployeesUseCase, identityService, currentUserService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        // Act
+        var actionResult = await controller.GetProfileImage(createdEmp.Id, CancellationToken.None);
+
+        // Assert
+        var fileResult = Assert.IsType<FileContentResult>(actionResult);
+        Assert.Equal("image/jpeg", fileResult.ContentType);
+        Assert.Equal(JpegBytes, fileResult.FileContents);
+        Assert.Equal("myavatar.jpg", fileResult.FileDownloadName);
+    }
+
+    [Fact]
+    public async Task Controller_GetProfileImage_WhenEmployeeHasNoImage_ReturnsNotFound()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Hospital",
+            Code = "H1",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "NoImg",
+            LastName = "User",
+            PhoneNumber = "09125554444",
+            PersonnelCode = "P-NOIMG",
+            NationalCode = "8877665555",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1)
+        };
+
+        var createdEmp = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        var currentUserId = Guid.NewGuid();
+        var httpContext = new DefaultHttpContext();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+            new Claim(ClaimTypes.Role, "CenterManager"),
+            new Claim("organization_id", orgId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var currentUserService = new CurrentUserService(httpContextAccessor);
+
+        var createUseCase = new CreateEmployeeUseCase(identityService);
+        var getEmployeesUseCase = new GetEmployeesUseCase(identityService);
+
+        var controller = new EmployeesController(createUseCase, getEmployeesUseCase, identityService, currentUserService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        // Act
+        var actionResult = await controller.GetProfileImage(createdEmp.Id, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(actionResult);
+    }
+
+    [Fact]
+    public async Task Controller_GetProfileImage_CenterManagerCrossOrganization_ReturnsForbid()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var targetOrgId = Guid.NewGuid();
+        var myManagerOrgId = Guid.NewGuid();
+
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = targetOrgId,
+            Name = "Target Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var file = CreateMockFormFile(PngBytes, "avatar.png", "image/png");
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Target",
+            LastName = "Emp",
+            PhoneNumber = "09127778899",
+            PersonnelCode = "P-TARGET",
+            NationalCode = "7766554433",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1),
+            ProfileImage = file
+        };
+
+        var createdEmp = await identityService.CreateEmployeeWithUserAsync(request, targetOrgId, Guid.NewGuid());
+
+        // CenterManager belonging to myManagerOrgId attempting to access targetOrgId's employee image
+        var currentUserId = Guid.NewGuid();
+        var httpContext = new DefaultHttpContext();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+            new Claim(ClaimTypes.Role, "CenterManager"),
+            new Claim("organization_id", myManagerOrgId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var currentUserService = new CurrentUserService(httpContextAccessor);
+
+        var createUseCase = new CreateEmployeeUseCase(identityService);
+        var getEmployeesUseCase = new GetEmployeesUseCase(identityService);
+
+        var controller = new EmployeesController(createUseCase, getEmployeesUseCase, identityService, currentUserService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        // Act
+        var actionResult = await controller.GetProfileImage(createdEmp.Id, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<ForbidResult>(actionResult);
     }
 
     [Fact]
@@ -301,6 +751,7 @@ public class EmployeeCreateTests
             await orgDb.SaveChangesAsync();
 
             var identityService = new EmployeeIdentityService(orgDb, identityDb);
+            var file = CreateMockFormFile(JpegBytes, "fail.jpeg", "image/jpeg");
 
             var request = new CreateEmployeeRequest
             {
@@ -310,14 +761,15 @@ public class EmployeeCreateTests
                 PersonnelCode = "EMP-UNIQUE-CODE",
                 NationalCode = "1111111111", // Duplicate NationalCode
                 BirthDate = new DateOnly(1990, 1, 1),
-                HireDate = new DateOnly(2020, 1, 1)
+                HireDate = new DateOnly(2020, 1, 1),
+                ProfileImage = file
             };
 
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentException>(() =>
                 identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
 
-            // Verify no user or user role remained for "FailEmp"
+            // Verify no user or user role remained for "FailEmp" and no orphaned employee image data
             Assert.False(await identityDb.Users.AnyAsync(u => u.PhoneNumber == "09121110099"));
             Assert.Equal(0, await identityDb.UserRoles.CountAsync());
             Assert.Equal(1, await orgDb.Employees.CountAsync()); // Only pre-existing Employee remains
@@ -588,7 +1040,7 @@ public class EmployeeCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(useCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(useCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -639,7 +1091,7 @@ public class EmployeeCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(useCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(useCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -696,7 +1148,7 @@ public class EmployeeCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new EmployeesController(useCase, getEmployeesUseCase, currentUserService)
+        var controller = new EmployeesController(useCase, getEmployeesUseCase, identityService, currentUserService)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
@@ -725,7 +1177,7 @@ public class EmployeeCreateTests
     }
 
     [Fact]
-    public void Controller_HasAuthorizeAttribute_RestrictedToCenterManagerAndSystemAdmin()
+    public void Controller_HasAuthorizeAttribute_RestrictedToCenterManagerSystemAdminAndEmployee()
     {
         // Arrange & Act
         var controllerType = typeof(EmployeesController);
@@ -733,6 +1185,6 @@ public class EmployeeCreateTests
 
         // Assert
         Assert.NotNull(authorizeAttr);
-        Assert.Equal("CenterManager,SystemAdmin", authorizeAttr.Roles);
+        Assert.Equal("CenterManager,SystemAdmin,Employee", authorizeAttr.Roles);
     }
 }

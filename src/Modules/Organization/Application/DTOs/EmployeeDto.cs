@@ -15,7 +15,7 @@ public class EmployeeDto
     public DateOnly HireDate { get; set; }
     public string? Gender { get; set; }
     public bool IsActive { get; set; }
-    public string? ProfileImagePath { get; set; }
+    public string? ProfileImageUrl { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public Guid? CreatedByUserId { get; set; }
 }
