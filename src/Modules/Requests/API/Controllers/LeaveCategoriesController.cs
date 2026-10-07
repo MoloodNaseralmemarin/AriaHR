@@ -3,6 +3,7 @@ using AriaHR.Modules.Requests.Application.UseCases.ActivateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.CreateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.DeactivateLeaveCategory;
 using AriaHR.Modules.Requests.Application.UseCases.GetLeaveCategories;
+using AriaHR.Modules.Requests.Application.UseCases.GetLeaveCategoryById;
 using AriaHR.Modules.Requests.Application.UseCases.UpdateLeaveCategory;
 using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -18,6 +19,7 @@ public class LeaveCategoriesController : ControllerBase
 {
     private readonly ICreateLeaveCategoryUseCase _createLeaveCategoryUseCase;
     private readonly IGetLeaveCategoriesUseCase _getLeaveCategoriesUseCase;
+    private readonly IGetLeaveCategoryByIdUseCase _getLeaveCategoryByIdUseCase;
     private readonly IUpdateLeaveCategoryUseCase _updateLeaveCategoryUseCase;
     private readonly IActivateLeaveCategoryUseCase _activateLeaveCategoryUseCase;
     private readonly IDeactivateLeaveCategoryUseCase _deactivateLeaveCategoryUseCase;
@@ -26,6 +28,7 @@ public class LeaveCategoriesController : ControllerBase
     public LeaveCategoriesController(
         ICreateLeaveCategoryUseCase createLeaveCategoryUseCase,
         IGetLeaveCategoriesUseCase getLeaveCategoriesUseCase,
+        IGetLeaveCategoryByIdUseCase getLeaveCategoryByIdUseCase,
         IUpdateLeaveCategoryUseCase updateLeaveCategoryUseCase,
         IActivateLeaveCategoryUseCase activateLeaveCategoryUseCase,
         IDeactivateLeaveCategoryUseCase deactivateLeaveCategoryUseCase,
@@ -33,6 +36,7 @@ public class LeaveCategoriesController : ControllerBase
     {
         _createLeaveCategoryUseCase = createLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(createLeaveCategoryUseCase));
         _getLeaveCategoriesUseCase = getLeaveCategoriesUseCase ?? throw new ArgumentNullException(nameof(getLeaveCategoriesUseCase));
+        _getLeaveCategoryByIdUseCase = getLeaveCategoryByIdUseCase ?? throw new ArgumentNullException(nameof(getLeaveCategoryByIdUseCase));
         _updateLeaveCategoryUseCase = updateLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(updateLeaveCategoryUseCase));
         _activateLeaveCategoryUseCase = activateLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(activateLeaveCategoryUseCase));
         _deactivateLeaveCategoryUseCase = deactivateLeaveCategoryUseCase ?? throw new ArgumentNullException(nameof(deactivateLeaveCategoryUseCase));
@@ -99,6 +103,61 @@ public class LeaveCategoriesController : ControllerBase
                 Title = "ورودی نامعتبر",
                 Detail = ex.Message
             });
+        }
+    }
+
+    [HttpGet("{id:guid}")]
+    [Authorize(Roles = "CenterManager,SystemAdmin,Employee")]
+    [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetLeaveCategoryById(
+        [FromRoute] Guid id,
+        CancellationToken cancellationToken)
+    {
+        Guid userId = _currentUserService.UserId;
+        if (userId == Guid.Empty)
+        {
+            return Unauthorized();
+        }
+
+        bool isSystemAdmin = _currentUserService.IsInRole("SystemAdmin");
+        Guid userOrgId = _currentUserService.OrganizationId ?? Guid.Empty;
+
+        try
+        {
+            var result = await _getLeaveCategoryByIdUseCase.ExecuteAsync(
+                id,
+                userOrgId,
+                isSystemAdmin,
+                cancellationToken);
+
+            if (result == null)
+            {
+                return NotFound(new ProblemDetails
+                {
+                    Status = StatusCodes.Status404NotFound,
+                    Title = "یافت نشد",
+                    Detail = "دسته‌بندی مرخصی مورد نظر یافت نشد."
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ورودی نامعتبر",
+                Detail = ex.Message
+            });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
     }
 
