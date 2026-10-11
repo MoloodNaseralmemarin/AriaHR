@@ -18,7 +18,8 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired(false);
 
         builder.HasIndex(x => x.Email)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
 
         builder.Property(x => x.PhoneNumber)
             .HasMaxLength(20)

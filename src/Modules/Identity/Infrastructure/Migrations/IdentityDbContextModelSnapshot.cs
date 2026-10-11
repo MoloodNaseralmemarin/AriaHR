@@ -239,7 +239,7 @@ namespace AriaHR.Modules.Identity.Infrastructure.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique()
-                        .HasFilter("[Email] IS NOT NULL");
+                        .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique()

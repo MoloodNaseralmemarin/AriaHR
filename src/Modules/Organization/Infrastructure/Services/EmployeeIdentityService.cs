@@ -115,7 +115,7 @@ public class EmployeeIdentityService : IEmployeeIdentityService
         }
 
         // Normalize email if provided
-        string? normalizedEmail = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+        string? normalizedEmail = EmailNormalizer.Normalize(request.Email);
 
         // 3. Check for existing user with normalized phone number
         var existingUser = await _identityDbContext.Users
@@ -128,9 +128,8 @@ public class EmployeeIdentityService : IEmployeeIdentityService
         // 3b. Check for existing user with duplicate email (case-insensitive)
         if (normalizedEmail != null)
         {
-            string lowerEmail = normalizedEmail.ToLower();
             var emailExists = await _identityDbContext.Users
-                .AnyAsync(u => !u.IsDeleted && u.Email != null && u.Email.ToLower() == lowerEmail, cancellationToken);
+                .AnyAsync(u => !u.IsDeleted && u.Email != null && u.Email.ToLower() == normalizedEmail, cancellationToken);
             if (emailExists)
             {
                 throw new ArgumentException("این ایمیل قبلاً ثبت شده است.", nameof(request.Email));
@@ -266,7 +265,9 @@ public class EmployeeIdentityService : IEmployeeIdentityService
             }
 
             if (ex.InnerException?.Message.Contains("IX_Users_Email") == true ||
-                ex.Message.Contains("IX_Users_Email"))
+                ex.Message.Contains("IX_Users_Email") ||
+                ex.InnerException?.Message.Contains("Users.Email") == true ||
+                ex.Message.Contains("Users.Email"))
             {
                 throw new ArgumentException("این ایمیل قبلاً ثبت شده است.", nameof(request.Email), ex);
             }

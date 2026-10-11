@@ -93,6 +93,8 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 throw new InvalidOperationException("Role 'CenterManager' does not exist in the database.");
             }
 
+            string? normalizedManagerEmail = EmailNormalizer.Normalize(request.ManagerEmail);
+
             // 2. Find existing user with manager mobile and validate Case C before creating Organization
             var existingUser = await _identityDbContext.Users
                 .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
@@ -102,6 +104,16 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
             if (existingUser != null && existingUser.OrganizationId.HasValue && existingUser.OrganizationId.Value != orgId)
             {
                 throw new ArgumentException("A user with this mobile number is already assigned to another organization.", nameof(request.ManagerMobile));
+            }
+
+            if (normalizedManagerEmail != null)
+            {
+                var emailExists = await _identityDbContext.Users
+                    .AnyAsync(u => !u.IsDeleted && (existingUser == null || u.Id != existingUser.Id) && u.Email != null && u.Email.ToLower() == normalizedManagerEmail, cancellationToken);
+                if (emailExists)
+                {
+                    throw new ArgumentException("A user with this email address already exists.", nameof(request.ManagerEmail));
+                }
             }
 
             // 3. Create Organization
@@ -146,10 +158,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     existingUser.LastName = request.ManagerLastName.Trim();
                 }
 
-                if (!string.IsNullOrWhiteSpace(request.ManagerEmail))
-                {
-                    existingUser.Email = request.ManagerEmail.Trim();
-                }
+                existingUser.Email = normalizedManagerEmail;
 
                 existingUser.IsActive = true;
 
@@ -180,7 +189,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     FirstName = request.ManagerFirstName.Trim(),
                     LastName = request.ManagerLastName.Trim(),
                     PhoneNumber = normalizedMobile,
-                    Email = request.ManagerEmail,
+                    Email = normalizedManagerEmail,
                     OrganizationId = organization.Id,
                     IsActive = true,
                     CreatedAtUtc = now,
@@ -236,6 +245,14 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 ex.Message.Contains("IX_Users_PhoneNumber"))
             {
                 throw new ArgumentException("A user with this mobile number already exists.", nameof(request.ManagerMobile), ex);
+            }
+
+            if (ex.InnerException?.Message.Contains("IX_Users_Email") == true ||
+                ex.Message.Contains("IX_Users_Email") ||
+                ex.InnerException?.Message.Contains("Users.Email") == true ||
+                ex.Message.Contains("Users.Email"))
+            {
+                throw new ArgumentException("A user with this email address already exists.", nameof(request.ManagerEmail), ex);
             }
 
             throw;

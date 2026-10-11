@@ -1278,11 +1278,11 @@ public class EmployeeCreateTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("Unique.User@Example.com", result.Email);
+        Assert.Equal("unique.user@example.com", result.Email);
 
         var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.Id == result.UserId);
         Assert.NotNull(dbUser);
-        Assert.Equal("Unique.User@Example.com", dbUser.Email);
+        Assert.Equal("unique.user@example.com", dbUser.Email);
     }
 
     [Theory]
