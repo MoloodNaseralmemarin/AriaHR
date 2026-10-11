@@ -1240,4 +1240,262 @@ public class EmployeeCreateTests
         Assert.NotNull(authorizeAttr);
         Assert.Equal("CenterManager,SystemAdmin,Employee", authorizeAttr.Roles);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WithUniqueEmail_Succeeds()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Unique",
+            LastName = "User",
+            PhoneNumber = "09120000001",
+            Email = "  Unique.User@Example.com  ",
+            PersonnelCode = "EMP-UNIQUE-EMAIL",
+            NationalCode = "1000000001",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1)
+        };
+
+        // Act
+        var result = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Unique.User@Example.com", result.Email);
+
+        var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.Id == result.UserId);
+        Assert.NotNull(dbUser);
+        Assert.Equal("Unique.User@Example.com", dbUser.Email);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ExecuteAsync_WithOmittedOrWhitespaceEmail_SucceedsAndStoresNull(string? email)
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Omitted",
+            LastName = "EmailUser",
+            PhoneNumber = "09120000002",
+            Email = email,
+            PersonnelCode = "EMP-OMITTED-EMAIL",
+            NationalCode = "1000000002",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1)
+        };
+
+        // Act
+        var result = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Null(result.Email);
+
+        var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.Id == result.UserId);
+        Assert.NotNull(dbUser);
+        Assert.Null(dbUser.Email);
+    }
+
+    [Theory]
+    [InlineData("user@example.com", "user@example.com")]
+    [InlineData("user@example.com", "USER@EXAMPLE.COM")]
+    [InlineData("user@example.com", "  User@Example.com  ")]
+    public async Task ExecuteAsync_WithDuplicateEmailCaseInsensitive_ThrowsArgumentException(string existingEmail, string duplicateEmailRequest)
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        identityDb.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Existing",
+            LastName = "User",
+            PhoneNumber = "09120000003",
+            Email = existingEmail,
+            IsActive = true
+        });
+        await identityDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Duplicate",
+            LastName = "EmailUser",
+            PhoneNumber = "09120000004",
+            Email = duplicateEmailRequest,
+            PersonnelCode = "EMP-DUP-EMAIL",
+            NationalCode = "1000000003",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1)
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
+
+        Assert.Contains("این ایمیل قبلاً ثبت شده است.", ex.Message);
+        Assert.Equal("Email", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDeletedUserDuplicateEmail_Succeeds()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        identityDb.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Deleted",
+            LastName = "User",
+            PhoneNumber = "09120000005",
+            Email = "deleted@example.com",
+            IsDeleted = true,
+            IsActive = false
+        });
+        await identityDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "New",
+            LastName = "User",
+            PhoneNumber = "09120000006",
+            Email = "deleted@example.com",
+            PersonnelCode = "EMP-DELETED-EMAIL",
+            NationalCode = "1000000004",
+            BirthDate = new DateOnly(1990, 1, 1),
+            HireDate = new DateOnly(2020, 1, 1)
+        };
+
+        // Act
+        var result = await identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("deleted@example.com", result.Email);
+    }
+
+    [Fact]
+    public async Task Sqlite_DuplicateEmailUniqueIndexViolation_ThrowsArgumentException()
+    {
+        // Arrange
+        var (orgDb, identityDb, connection) = GetSqliteDbContexts();
+        try
+        {
+            await SeedEmployeeRoleAsync(identityDb);
+
+            var orgId = Guid.NewGuid();
+            orgDb.Organizations.Add(new Domain.Entities.Organization
+            {
+                Id = orgId,
+                Name = "Sqlite Hospital",
+                Code = "SQ-01",
+                Type = OrganizationType.Clinic,
+                IsActive = true
+            });
+            await orgDb.SaveChangesAsync();
+
+            // Pre-insert user directly to bypass pre-validation check or test index
+            identityDb.Users.Add(new User
+            {
+                Id = Guid.NewGuid(),
+                FirstName = "Existing",
+                LastName = "User",
+                PhoneNumber = "09120000007",
+                Email = "sqlite.duplicate@example.com",
+                IsActive = true
+            });
+            await identityDb.SaveChangesAsync();
+
+            var identityService = new EmployeeIdentityService(orgDb, identityDb);
+
+            var request = new CreateEmployeeRequest
+            {
+                FirstName = "SqliteDup",
+                LastName = "EmailUser",
+                PhoneNumber = "09120000008",
+                Email = "sqlite.duplicate@example.com",
+                PersonnelCode = "EMP-SQLITE-DUP",
+                NationalCode = "1000000005",
+                BirthDate = new DateOnly(1990, 1, 1),
+                HireDate = new DateOnly(2020, 1, 1)
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+                identityService.CreateEmployeeWithUserAsync(request, orgId, Guid.NewGuid()));
+
+            Assert.Contains("این ایمیل قبلاً ثبت شده است.", ex.Message);
+            Assert.Equal("Email", ex.ParamName);
+        }
+        finally
+        {
+            await orgDb.DisposeAsync();
+            await identityDb.DisposeAsync();
+            await connection.DisposeAsync();
+        }
+    }
 }
