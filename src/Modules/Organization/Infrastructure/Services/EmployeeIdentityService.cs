@@ -114,12 +114,27 @@ public class EmployeeIdentityService : IEmployeeIdentityService
             throw new InvalidOperationException("Role 'Employee' does not exist in the database.");
         }
 
+        // Normalize email if provided
+        string? normalizedEmail = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+
         // 3. Check for existing user with normalized phone number
         var existingUser = await _identityDbContext.Users
             .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone, cancellationToken);
         if (existingUser != null)
         {
             throw new ArgumentException("کاربری با این شماره موبایل قبلاً ثبت شده است.");
+        }
+
+        // 3b. Check for existing user with duplicate email (case-insensitive)
+        if (normalizedEmail != null)
+        {
+            string lowerEmail = normalizedEmail.ToLower();
+            var emailExists = await _identityDbContext.Users
+                .AnyAsync(u => !u.IsDeleted && u.Email != null && u.Email.ToLower() == lowerEmail, cancellationToken);
+            if (emailExists)
+            {
+                throw new ArgumentException("این ایمیل قبلاً ثبت شده است.", nameof(request.Email));
+            }
         }
 
         // 4. Validate duplicate NationalCode
@@ -164,7 +179,7 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 FirstName = request.FirstName.Trim(),
                 LastName = request.LastName.Trim(),
                 PhoneNumber = normalizedPhone,
-                Email = request.Email?.Trim(),
+                Email = normalizedEmail,
                 OrganizationId = organizationId,
                 IsActive = true,
                 CreatedAtUtc = now,
@@ -248,6 +263,12 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 ex.Message.Contains("IX_Users_PhoneNumber"))
             {
                 throw new ArgumentException("کاربری با این شماره موبایل قبلاً ثبت شده است.", nameof(request.PhoneNumber), ex);
+            }
+
+            if (ex.InnerException?.Message.Contains("IX_Users_Email") == true ||
+                ex.Message.Contains("IX_Users_Email"))
+            {
+                throw new ArgumentException("این ایمیل قبلاً ثبت شده است.", nameof(request.Email), ex);
             }
 
             throw;
