@@ -58,6 +58,7 @@ public class EmployeeListTests
             LastName = "Rezai",
             PhoneNumber = "09121111111",
             Email = "ali@example.com",
+            Gender = "Male",
             OrganizationId = orgId,
             IsActive = true
         };
@@ -69,6 +70,7 @@ public class EmployeeListTests
             LastName = "Ahmadi",
             PhoneNumber = "09122222222",
             Email = "sara@example.com",
+            Gender = "Female",
             OrganizationId = orgId,
             IsActive = true
         };
@@ -119,6 +121,7 @@ public class EmployeeListTests
         Assert.Equal("Ahmadi", firstMapped.LastName);
         Assert.Equal("09122222222", firstMapped.PhoneNumber);
         Assert.Equal("sara@example.com", firstMapped.Email);
+        Assert.Equal("Female", firstMapped.Gender);
         Assert.Equal("P-002", firstMapped.PersonnelCode);
 
         var secondMapped = result.First(e => e.Id == emp1.Id);
@@ -126,6 +129,7 @@ public class EmployeeListTests
         Assert.Equal("Rezai", secondMapped.LastName);
         Assert.Equal("09121111111", secondMapped.PhoneNumber);
         Assert.Equal("ali@example.com", secondMapped.Email);
+        Assert.Equal("Male", secondMapped.Gender);
         Assert.Equal("P-001", secondMapped.PersonnelCode);
     }
 

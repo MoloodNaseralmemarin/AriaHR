@@ -22,8 +22,6 @@ public class Employee : BaseEntity
 
     public DateOnly BirthDate { get; set; }
 
-    public string? Gender { get; set; }
-
     public DateOnly HireDate { get; set; }
 
     public bool IsActive { get; set; }

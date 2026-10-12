@@ -157,6 +157,59 @@ public class EmployeeCreateTests
         Assert.Null(dbEmployee.ProfileImage);
         Assert.Null(dbEmployee.ProfileImageContentType);
         Assert.Null(dbEmployee.ProfileImageFileName);
+
+        // Verify User saved in Identity database holds Gender
+        var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.Id == result.UserId);
+        Assert.NotNull(dbUser);
+        Assert.Equal("Male", dbUser.Gender);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task ExecuteAsync_WithOmittedOrNullGender_SavesNullToUserGenderAndSucceeds(string? gender)
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        await SeedEmployeeRoleAsync(identityDb);
+
+        var orgId = Guid.NewGuid();
+        orgDb.Organizations.Add(new Domain.Entities.Organization
+        {
+            Id = orgId,
+            Name = "Test Hospital",
+            Code = "TH-01",
+            Type = OrganizationType.Clinic,
+            IsActive = true
+        });
+        await orgDb.SaveChangesAsync();
+
+        var identityService = new EmployeeIdentityService(orgDb, identityDb);
+        var useCase = new CreateEmployeeUseCase(identityService);
+
+        var request = new CreateEmployeeRequest
+        {
+            FirstName = "Jane",
+            LastName = "Doe",
+            PhoneNumber = "09120009988",
+            Email = "jane.doe@example.com",
+            PersonnelCode = "EMP-NO-GENDER",
+            NationalCode = "1234567898",
+            BirthDate = new DateOnly(1995, 5, 15),
+            HireDate = new DateOnly(2023, 1, 10),
+            Gender = gender
+        };
+
+        // Act
+        var result = await useCase.ExecuteAsync(request, orgId, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Null(result.Gender);
+
+        var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.Id == result.UserId);
+        Assert.NotNull(dbUser);
+        Assert.Null(dbUser.Gender);
     }
 
     [Fact]

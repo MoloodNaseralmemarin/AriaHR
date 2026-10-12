@@ -222,6 +222,7 @@ public class AuthControllerTests
             LastName = "سلطانی",
             PhoneNumber = "09183159274",
             Email = "admin2@ariahr.com",
+            Gender = "Male",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -261,6 +262,7 @@ public class AuthControllerTests
         Assert.NotNull(response.AccessToken);
         Assert.Equal("مرتضی", response.User.FirstName);
         Assert.Equal("سلطانی", response.User.LastName);
+        Assert.Equal("Male", response.User.Gender);
         Assert.Contains("SystemAdmin", response.User.Roles);
 
         var updatedOtp = await dbContext.OtpCodes.FirstAsync(o => o.Id == otp.Id);
@@ -279,6 +281,7 @@ public class AuthControllerTests
             LastName = "ناصرالمعمارین",
             PhoneNumber = "09376421351",
             Email = "admin3@ariahr.com",
+            Gender = "Female",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -315,6 +318,7 @@ public class AuthControllerTests
         Assert.Equal(user.Id, response.Id);
         Assert.Equal("مولود", response.FirstName);
         Assert.Equal("ناصرالمعمارین", response.LastName);
+        Assert.Equal("Female", response.Gender);
         Assert.Contains("SystemAdmin", response.Roles);
     }
 

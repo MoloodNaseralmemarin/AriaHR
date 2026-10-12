@@ -96,7 +96,8 @@ public class VerifyOtpUseCase
             user.LastName,
             user.PhoneNumber,
             roleNames,
-            user.OrganizationId);
+            user.OrganizationId,
+            user.Gender);
 
         var response = new VerifyOtpResponse(accessToken, expiresAt, userDto);
 
