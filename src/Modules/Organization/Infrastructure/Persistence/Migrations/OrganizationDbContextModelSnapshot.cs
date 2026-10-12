@@ -150,9 +150,6 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("DeletedByUserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Gender")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateOnly>("HireDate")
                         .HasColumnType("date");
 

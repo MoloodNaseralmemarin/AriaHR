@@ -26,5 +26,9 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.HasIndex(x => x.PhoneNumber)
             .IsUnique();
+
+        builder.Property(x => x.Gender)
+            .HasMaxLength(50)
+            .IsRequired(false);
     }
 }

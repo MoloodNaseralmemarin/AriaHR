@@ -180,6 +180,7 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 LastName = request.LastName.Trim(),
                 PhoneNumber = normalizedPhone,
                 Email = normalizedEmail,
+                Gender = string.IsNullOrWhiteSpace(request.Gender) ? null : request.Gender.Trim(),
                 OrganizationId = organizationId,
                 IsActive = true,
                 CreatedAtUtc = now,
@@ -210,7 +211,6 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 NationalCode = trimmedNationalCode,
                 BirthDate = request.BirthDate,
                 HireDate = request.HireDate,
-                Gender = request.Gender?.Trim(),
                 ProfileImage = profileImageData,
                 ProfileImageContentType = profileImageContentType,
                 ProfileImageFileName = profileImageFileName,
@@ -243,7 +243,7 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 NationalCode = employee.NationalCode,
                 BirthDate = employee.BirthDate,
                 HireDate = employee.HireDate,
-                Gender = employee.Gender,
+                Gender = user.Gender,
                 IsActive = employee.IsActive,
                 ProfileImageUrl = employee.ProfileImage != null
                     ? $"/api/organizations/employees/{employee.Id}/profile-image"
@@ -341,7 +341,7 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                 NationalCode = employee.NationalCode,
                 BirthDate = employee.BirthDate,
                 HireDate = employee.HireDate,
-                Gender = employee.Gender,
+                Gender = user?.Gender,
                 IsActive = employee.IsActive,
                 ProfileImageUrl = employee.ProfileImage != null
                     ? $"/api/organizations/employees/{employee.Id}/profile-image"

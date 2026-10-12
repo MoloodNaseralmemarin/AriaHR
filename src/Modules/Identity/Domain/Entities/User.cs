@@ -28,6 +28,11 @@ public class User : BaseEntity
     public string? Email { get; set; }
 
     /// <summary>
+    /// Optional gender.
+    /// </summary>
+    public string? Gender { get; set; }
+
+    /// <summary>
     /// Optional organization identifier for multi-tenancy context.
     /// </summary>
     public Guid? OrganizationId { get; set; }
