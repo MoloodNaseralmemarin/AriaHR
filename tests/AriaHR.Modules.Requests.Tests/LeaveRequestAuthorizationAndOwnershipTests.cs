@@ -67,7 +67,9 @@ public class LeaveRequestAuthorizationAndOwnershipTests
             EmployeeId = employeeBId,
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -103,7 +105,9 @@ public class LeaveRequestAuthorizationAndOwnershipTests
             EmployeeId = employeeBId,
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -132,7 +136,9 @@ public class LeaveRequestAuthorizationAndOwnershipTests
             EmployeeId = Guid.NewGuid(),
             OrganizationId = orgB, // Belonging to Org B
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -162,7 +168,9 @@ public class LeaveRequestAuthorizationAndOwnershipTests
             EmployeeId = Guid.NewGuid(),
             OrganizationId = orgB,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
         };

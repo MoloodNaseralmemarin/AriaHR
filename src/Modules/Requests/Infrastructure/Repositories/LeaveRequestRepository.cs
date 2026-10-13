@@ -59,12 +59,12 @@ public class LeaveRequestRepository : ILeaveRequestRepository
 
         if (from.HasValue)
         {
-            query = query.Where(r => r.Date >= from.Value);
+            query = query.Where(r => r.EndDate >= from.Value);
         }
 
         if (to.HasValue)
         {
-            query = query.Where(r => r.Date <= to.Value);
+            query = query.Where(r => r.StartDate <= to.Value);
         }
 
         return await query

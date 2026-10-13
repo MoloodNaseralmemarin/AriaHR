@@ -54,7 +54,9 @@ public class LeaveRequestStateTransitionTests
             EmployeeId = Guid.NewGuid(),
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -84,7 +86,9 @@ public class LeaveRequestStateTransitionTests
             EmployeeId = Guid.NewGuid(),
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -120,7 +124,9 @@ public class LeaveRequestStateTransitionTests
             EmployeeId = employeeId,
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -150,7 +156,9 @@ public class LeaveRequestStateTransitionTests
             EmployeeId = Guid.NewGuid(),
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Approved, // Already approved
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -182,7 +190,9 @@ public class LeaveRequestStateTransitionTests
             EmployeeId = Guid.NewGuid(),
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Rejected, // Already rejected
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -209,7 +219,9 @@ public class LeaveRequestStateTransitionTests
             EmployeeId = Guid.NewGuid(),
             OrganizationId = orgId,
             LeaveType = LeaveTypeEnum.Daily,
-            Date = new DateOnly(2026, 10, 5),
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
             Status = RequestStatus.Cancelled, // Already cancelled
             CreatedAtUtc = DateTime.UtcNow
         };
