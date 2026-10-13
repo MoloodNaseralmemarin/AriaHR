@@ -22,8 +22,20 @@ public sealed class LeaveRequestConfiguration : IEntityTypeConfiguration<LeaveRe
             .IsRequired()
             .HasConversion<int>();
 
-        builder.Property(x => x.Date)
+        builder.Property(x => x.LeaveCategoryId)
             .IsRequired();
+
+        builder.Property(x => x.StartDate)
+            .IsRequired();
+
+        builder.Property(x => x.EndDate)
+            .IsRequired();
+
+        builder.Property(x => x.StartTime)
+            .IsRequired(false);
+
+        builder.Property(x => x.EndTime)
+            .IsRequired(false);
 
         builder.Property(x => x.Reason)
             .HasMaxLength(500);
@@ -37,6 +49,7 @@ public sealed class LeaveRequestConfiguration : IEntityTypeConfiguration<LeaveRe
 
         builder.HasIndex(x => x.OrganizationId);
         builder.HasIndex(x => x.EmployeeId);
+        builder.HasIndex(x => x.LeaveCategoryId);
         builder.HasIndex(x => x.Status);
     }
 }

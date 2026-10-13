@@ -8,7 +8,9 @@ public class LeaveRequestDto
     public Guid EmployeeId { get; set; }
     public Guid OrganizationId { get; set; }
     public LeaveType LeaveType { get; set; }
-    public DateOnly Date { get; set; }
+    public Guid LeaveCategoryId { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
     public TimeOnly? StartTime { get; set; }
     public TimeOnly? EndTime { get; set; }
     public string? Reason { get; set; }

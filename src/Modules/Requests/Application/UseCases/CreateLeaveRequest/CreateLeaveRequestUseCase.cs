@@ -10,13 +10,16 @@ namespace AriaHR.Modules.Requests.Application.UseCases.CreateLeaveRequest;
 public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
 {
     private readonly ILeaveRequestRepository _repository;
+    private readonly ILeaveCategoryRepository _leaveCategoryRepository;
     private readonly IEmployeeLookupService _employeeLookupService;
 
     public CreateLeaveRequestUseCase(
         ILeaveRequestRepository repository,
+        ILeaveCategoryRepository leaveCategoryRepository,
         IEmployeeLookupService employeeLookupService)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _leaveCategoryRepository = leaveCategoryRepository ?? throw new ArgumentNullException(nameof(leaveCategoryRepository));
         _employeeLookupService = employeeLookupService ?? throw new ArgumentNullException(nameof(employeeLookupService));
     }
 
@@ -43,12 +46,38 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
 
         var (employeeId, organizationId) = employeeDetails.Value;
 
-        if (request.Date == default)
+        if (request.LeaveCategoryId == Guid.Empty)
         {
-            throw new ArgumentException("تاریخ مرخصی الزامی است.", nameof(request.Date));
+            throw new ArgumentException("شناسه دسته‌بندی مرخصی الزامی است.", nameof(request.LeaveCategoryId));
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Reason) && request.Reason.Length > 500)
+        var category = await _leaveCategoryRepository.GetByIdAsync(request.LeaveCategoryId, cancellationToken);
+        if (category == null || category.IsDeleted || category.OrganizationId != organizationId)
+        {
+            throw new ArgumentException("دسته‌بندی مرخصی انتخابی نامعتبر است یا به سازمان شما تعلق ندارد.", nameof(request.LeaveCategoryId));
+        }
+
+        if (!category.IsActive)
+        {
+            throw new ArgumentException("دسته‌بندی مرخصی انتخابی غیرفعال است.", nameof(request.LeaveCategoryId));
+        }
+
+        if (request.StartDate == default)
+        {
+            throw new ArgumentException("تاریخ شروع مرخصی الزامی است.", nameof(request.StartDate));
+        }
+
+        if (request.EndDate == default)
+        {
+            throw new ArgumentException("تاریخ پایان مرخصی الزامی است.", nameof(request.EndDate));
+        }
+
+        if (request.EndDate < request.StartDate)
+        {
+            throw new ArgumentException("تاریخ پایان مرخصی نمی‌تواند قبل از تاریخ شروع باشد.", nameof(request.EndDate));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Reason) && request.Reason.Trim().Length > 500)
         {
             throw new ArgumentException("علت مرخصی نمی‌تواند بیش از 500 کاراکتر باشد.", nameof(request.Reason));
         }
@@ -58,6 +87,11 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
 
         if (request.LeaveType == LeaveTypeEnum.Hourly)
         {
+            if (request.StartDate != request.EndDate)
+            {
+                throw new ArgumentException("در مرخصی ساعتی، تاریخ شروع و پایان باید برابر باشد.", nameof(request.EndDate));
+            }
+
             if (!request.StartTime.HasValue)
             {
                 throw new ArgumentException("زمان شروع برای مرخصی ساعتی الزامی است.", nameof(request.StartTime));
@@ -93,10 +127,12 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
             EmployeeId = employeeId,
             OrganizationId = organizationId,
             LeaveType = request.LeaveType,
-            Date = request.Date,
+            LeaveCategoryId = request.LeaveCategoryId,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
             StartTime = startTime,
             EndTime = endTime,
-            Reason = request.Reason?.Trim(),
+            Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
             Status = RequestStatus.Pending,
             CreatedAtUtc = now,
             CreatedByUserId = userId
@@ -111,7 +147,9 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
             EmployeeId = leaveRequest.EmployeeId,
             OrganizationId = leaveRequest.OrganizationId,
             LeaveType = leaveRequest.LeaveType,
-            Date = leaveRequest.Date,
+            LeaveCategoryId = leaveRequest.LeaveCategoryId,
+            StartDate = leaveRequest.StartDate,
+            EndDate = leaveRequest.EndDate,
             StartTime = leaveRequest.StartTime,
             EndTime = leaveRequest.EndTime,
             Reason = leaveRequest.Reason,
