@@ -112,6 +112,11 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
         }
         else if (request.LeaveType == LeaveTypeEnum.Daily)
         {
+            if (request.StartTime.HasValue || request.EndTime.HasValue)
+            {
+                throw new ArgumentException("در مرخصی روزانه، زمان شروع و پایان نباید مقداردهی شوند.", nameof(request.StartTime));
+            }
+
             startTime = null;
             endTime = null;
         }

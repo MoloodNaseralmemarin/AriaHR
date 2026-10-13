@@ -187,4 +187,42 @@ public class LeaveRequestAuthorizationAndOwnershipTests
                 userOrganizationId: orgA,
                 isSystemAdmin: false));
     }
+
+    [Fact]
+    public async Task GetLeaveRequestById_CenterManagerOrgAReadingOrgBRequest_ThrowsUnauthorizedAccessException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+
+        var managerUser = Guid.NewGuid();
+        var orgA = Guid.NewGuid();
+        var orgB = Guid.NewGuid();
+
+        var leaveRequest = new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = Guid.NewGuid(),
+            OrganizationId = orgB,
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = new DateOnly(2026, 10, 5),
+            EndDate = new DateOnly(2026, 10, 5),
+            Status = RequestStatus.Pending,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await repository.AddAsync(leaveRequest);
+        await repository.SaveChangesAsync();
+
+        var lookupService = new DictionaryEmployeeLookupService(new Dictionary<Guid, (Guid, Guid)>());
+
+        var useCase = new GetLeaveRequestByIdUseCase(repository, lookupService);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            useCase.ExecuteAsync(
+                leaveRequest.Id,
+                managerUser,
+                isSystemAdmin: false,
+                isCenterManager: true,
+                userOrganizationId: orgA));
+    }
 }
