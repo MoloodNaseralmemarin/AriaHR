@@ -14,7 +14,7 @@ namespace AriaHR.Modules.Requests.API.Controllers;
 
 [ApiController]
 [Route("api/requests/leave-categories")]
-[Authorize(Roles = "CenterManager,SystemAdmin")]
+[Authorize]
 public class LeaveCategoriesController : ControllerBase
 {
     private readonly ICreateLeaveCategoryUseCase _createLeaveCategoryUseCase;
@@ -90,9 +90,13 @@ public class LeaveCategoriesController : ControllerBase
             }
         }
 
+        bool onlyActive = _currentUserService.IsInRole("Employee") &&
+                         !_currentUserService.IsInRole("CenterManager") &&
+                         !_currentUserService.IsInRole("SystemAdmin");
+
         try
         {
-            var result = await _getLeaveCategoriesUseCase.ExecuteAsync(targetOrgId, cancellationToken);
+            var result = await _getLeaveCategoriesUseCase.ExecuteAsync(targetOrgId, onlyActive, cancellationToken);
             return Ok(result);
         }
         catch (ArgumentException ex)
@@ -162,6 +166,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -234,6 +239,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -300,6 +306,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/activate")]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -354,6 +361,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/deactivate")]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]

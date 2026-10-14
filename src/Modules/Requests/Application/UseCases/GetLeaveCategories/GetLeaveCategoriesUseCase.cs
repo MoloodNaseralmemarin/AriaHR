@@ -14,6 +14,7 @@ public class GetLeaveCategoriesUseCase : IGetLeaveCategoriesUseCase
 
     public async Task<IEnumerable<LeaveCategoryDto>> ExecuteAsync(
         Guid organizationId,
+        bool onlyActive = false,
         CancellationToken cancellationToken = default)
     {
         if (organizationId == Guid.Empty)
@@ -21,7 +22,9 @@ public class GetLeaveCategoriesUseCase : IGetLeaveCategoriesUseCase
             throw new ArgumentException("شناسه سازمان الزامی است.", nameof(organizationId));
         }
 
-        var categories = await _repository.GetByOrganizationAsync(organizationId, cancellationToken);
+        var categories = onlyActive
+            ? await _repository.GetAllActiveAsync(organizationId, cancellationToken)
+            : await _repository.GetByOrganizationAsync(organizationId, cancellationToken);
 
         return categories.Select(c => new LeaveCategoryDto
         {
