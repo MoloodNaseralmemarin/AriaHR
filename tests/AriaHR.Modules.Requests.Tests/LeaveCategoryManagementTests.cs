@@ -429,6 +429,7 @@ public class LeaveCategoryManagementTests
         var deactivateUseCase = new DeactivateLeaveCategoryUseCase(repository);
 
         var orgId = Guid.NewGuid();
+        var otherOrgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
         var activeCat = await createUseCase.ExecuteAsync(new CreateLeaveCategoryRequest { Name = "مرخصی فعال" }, orgId, userId);
@@ -461,8 +462,8 @@ public class LeaveCategoryManagementTests
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
 
+        // 1. Without organizationId query parameter
         var actionResult = await controller.GetLeaveCategories(null, CancellationToken.None);
-
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
         var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryDto>>(okResult.Value).ToList();
         Assert.Single(dtos);
@@ -567,7 +568,7 @@ public class LeaveCategoryManagementTests
     }
 
     [Fact]
-    public async Task Controller_GetLeaveCategories_AsCenterManagerAccessingOtherOrg_ReturnsForbid()
+    public async Task Controller_GetLeaveCategories_AsCenterManagerAccessingOtherOrg_Returns403Forbidden()
     {
         using var dbContext = CreateDbContext();
         var repository = new LeaveCategoryRepository(dbContext);
@@ -609,7 +610,10 @@ public class LeaveCategoryManagementTests
 
         var actionResult = await controller.GetLeaveCategories(otherOrgId, CancellationToken.None);
 
-        Assert.IsType<ForbidResult>(actionResult);
+        var objectResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        Assert.Equal("ORGANIZATION_ACCESS_DENIED", problem.Extensions["errorCode"]);
     }
 
     [Fact]
