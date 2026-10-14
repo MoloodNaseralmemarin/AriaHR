@@ -14,6 +14,15 @@ public sealed class NotificationDbContext : DbContext
     public DbSet<Domain.Entities.Notification> Notifications =>
         Set<Domain.Entities.Notification>();
 
+    public DbSet<NotificationRecipient> NotificationRecipients =>
+        Set<NotificationRecipient>();
+
+    public DbSet<NotificationReply> NotificationReplies =>
+        Set<NotificationReply>();
+
+    public DbSet<CrossCenterPermission> CrossCenterPermissions =>
+        Set<CrossCenterPermission>();
+
     public DbSet<UserDevice> UserDevices =>
         Set<UserDevice>();
 
