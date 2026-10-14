@@ -6,5 +6,6 @@ public interface IGetLeaveCategoriesUseCase
 {
     Task<IEnumerable<LeaveCategoryDto>> ExecuteAsync(
         Guid organizationId,
+        bool onlyActive = false,
         CancellationToken cancellationToken = default);
 }

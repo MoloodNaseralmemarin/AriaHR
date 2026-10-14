@@ -14,7 +14,7 @@ namespace AriaHR.Modules.Requests.API.Controllers;
 
 [ApiController]
 [Route("api/requests/leave-categories")]
-[Authorize(Roles = "CenterManager,SystemAdmin")]
+[Authorize]
 public class LeaveCategoriesController : ControllerBase
 {
     private readonly ICreateLeaveCategoryUseCase _createLeaveCategoryUseCase;
@@ -48,7 +48,7 @@ public class LeaveCategoriesController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<LeaveCategoryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetLeaveCategories(
         [FromQuery] Guid? organizationId,
         CancellationToken cancellationToken)
@@ -56,8 +56,19 @@ public class LeaveCategoriesController : ControllerBase
         Guid userId = _currentUserService.UserId;
         if (userId == Guid.Empty)
         {
-            return Unauthorized();
+            return Unauthorized(new ProblemDetails
+            {
+                Status = StatusCodes.Status401Unauthorized,
+                Title = "احراز هویت نشده",
+                Detail = "شناسه کاربر معتبر در توکن یافت نشد.",
+                Extensions = { ["errorCode"] = "USER_ID_MISSING" }
+            });
         }
+
+        bool isEmployee = _currentUserService.IsInRole("Employee") &&
+                          !_currentUserService.IsInRole("CenterManager") &&
+                          !_currentUserService.IsInRole("SystemAdmin");
+        bool onlyActive = isEmployee;
 
         Guid targetOrgId;
 
@@ -66,12 +77,24 @@ public class LeaveCategoriesController : ControllerBase
             var userOrgId = _currentUserService.OrganizationId;
             if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
             {
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+                {
+                    Status = StatusCodes.Status403Forbidden,
+                    Title = "عدم دسترسی",
+                    Detail = "شناسه سازمان کاربر یافت نشد.",
+                    Extensions = { ["errorCode"] = "ORGANIZATION_CLAIM_MISSING" }
+                });
             }
 
             if (organizationId.HasValue && organizationId.Value != Guid.Empty && organizationId.Value != userOrgId.Value)
             {
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+                {
+                    Status = StatusCodes.Status403Forbidden,
+                    Title = "عدم دسترسی",
+                    Detail = "امکان دسترسی به اطلاعات سازمان دیگر وجود ندارد.",
+                    Extensions = { ["errorCode"] = "ORGANIZATION_ACCESS_DENIED" }
+                });
             }
 
             targetOrgId = userOrgId.Value;
@@ -85,14 +108,15 @@ public class LeaveCategoriesController : ControllerBase
                 {
                     Status = StatusCodes.Status400BadRequest,
                     Title = "سازمان مشخص نشده است",
-                    Detail = "شناسه سازمان معتبر در درخواست یا توکن یافت نشد."
+                    Detail = "شناسه سازمان معتبر در درخواست یا توکن یافت نشد.",
+                    Extensions = { ["errorCode"] = "ORGANIZATION_CLAIM_INVALID" }
                 });
             }
         }
 
         try
         {
-            var result = await _getLeaveCategoriesUseCase.ExecuteAsync(targetOrgId, cancellationToken);
+            var result = await _getLeaveCategoriesUseCase.ExecuteAsync(targetOrgId, onlyActive, cancellationToken);
             return Ok(result);
         }
         catch (ArgumentException ex)
@@ -101,7 +125,8 @@ public class LeaveCategoriesController : ControllerBase
             {
                 Status = StatusCodes.Status400BadRequest,
                 Title = "ورودی نامعتبر",
-                Detail = ex.Message
+                Detail = ex.Message,
+                Extensions = { ["errorCode"] = "INVALID_INPUT" }
             });
         }
     }
@@ -162,6 +187,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -234,6 +260,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -300,6 +327,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/activate")]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -354,6 +382,7 @@ public class LeaveCategoriesController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/deactivate")]
+    [Authorize(Roles = "CenterManager,SystemAdmin")]
     [ProducesResponseType(typeof(LeaveCategoryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
