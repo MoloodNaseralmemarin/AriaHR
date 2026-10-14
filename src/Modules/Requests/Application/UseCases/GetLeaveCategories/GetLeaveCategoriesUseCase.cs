@@ -12,7 +12,7 @@ public class GetLeaveCategoriesUseCase : IGetLeaveCategoriesUseCase
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
     }
 
-    public async Task<IEnumerable<LeaveCategoryDto>> ExecuteAsync(
+    public async Task<IEnumerable<LeaveCategoryListItemDto>> ExecuteAsync(
         Guid organizationId,
         bool onlyActive = false,
         CancellationToken cancellationToken = default)
@@ -26,15 +26,11 @@ public class GetLeaveCategoriesUseCase : IGetLeaveCategoriesUseCase
             ? await _repository.GetAllActiveAsync(organizationId, cancellationToken)
             : await _repository.GetByOrganizationAsync(organizationId, cancellationToken);
 
-        return categories.Select(c => new LeaveCategoryDto
+        return categories.Select(c => new LeaveCategoryListItemDto
         {
             Id = c.Id,
             OrganizationId = c.OrganizationId,
-            Name = c.Name,
-            MaxDaysPerYear = c.MaxDaysPerYear,
-            IsPaid = c.IsPaid,
-            RequiresAttachment = c.RequiresAttachment,
-            IsActive = c.IsActive
+            Name = c.Name
         });
     }
 }

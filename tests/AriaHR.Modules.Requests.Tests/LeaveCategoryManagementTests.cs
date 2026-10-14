@@ -381,7 +381,6 @@ public class LeaveCategoryManagementTests
         Assert.Equal("A - مرخصی استحقاقی", result[0].Name);
         Assert.Equal("B - مرخصی استعلاجی", result[1].Name);
         Assert.Equal("C - مرخصی ساعتی", result[2].Name);
-        Assert.False(result[1].IsActive); // Contains inactive category
     }
 
     [Fact]
@@ -466,14 +465,14 @@ public class LeaveCategoryManagementTests
         // 1. Without organizationId query parameter
         var actionResult = await controller.GetLeaveCategories(null, CancellationToken.None);
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryDto>>(okResult.Value).ToList();
+        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryListItemDto>>(okResult.Value).ToList();
         Assert.Single(dtos);
         Assert.Equal("مرخصی سالانه فعال", dtos.First().Name);
 
         // 2. With matching organizationId query parameter
         var actionResultWithOrg = await controller.GetLeaveCategories(orgId, CancellationToken.None);
         var okResultWithOrg = Assert.IsType<OkObjectResult>(actionResultWithOrg);
-        var dtosWithOrg = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryDto>>(okResultWithOrg.Value).ToList();
+        var dtosWithOrg = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryListItemDto>>(okResultWithOrg.Value).ToList();
         Assert.Single(dtosWithOrg);
         Assert.Equal("مرخصی سالانه فعال", dtosWithOrg.First().Name);
 
@@ -615,7 +614,7 @@ public class LeaveCategoryManagementTests
         var actionResult = await controller.GetLeaveCategories(null, CancellationToken.None);
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryDto>>(okResult.Value).ToList();
+        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryListItemDto>>(okResult.Value).ToList();
         Assert.Equal(2, dtos.Count); // CenterManager sees both active and inactive categories
     }
 
@@ -712,7 +711,7 @@ public class LeaveCategoryManagementTests
         var actionResult = await controller.GetLeaveCategories(targetOrgId, CancellationToken.None);
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryDto>>(okResult.Value);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryListItemDto>>(okResult.Value);
         Assert.Single(dtos);
         Assert.Equal("مرخصی ادمین", dtos.First().Name);
     }
@@ -835,5 +834,46 @@ public class LeaveCategoryManagementTests
         var dto = Assert.IsType<LeaveCategoryDto>(okResult.Value);
         Assert.Equal(created.Id, dto.Id);
         Assert.Equal("مرخصی سالانه", dto.Name);
+    }
+
+    [Fact]
+    public void LeaveCategoryListItemDto_ContainsOnlyRequiredProperties()
+    {
+        var properties = typeof(LeaveCategoryListItemDto).GetProperties();
+        var propertyNames = properties.Select(p => p.Name).OrderBy(p => p).ToList();
+
+        Assert.Equal(3, properties.Length);
+        Assert.Equal(new[] { "Id", "Name", "OrganizationId" }, propertyNames);
+    }
+
+    [Fact]
+    public async Task GetLeaveCategories_ReturnsSimplifiedDtoMatchingDomainEntity()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var useCase = new GetLeaveCategoriesUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var category = new LeaveCategory
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            Name = "مرخصی تست",
+            MaxDaysPerYear = 15,
+            IsPaid = true,
+            RequiresAttachment = true,
+            IsActive = true
+        };
+
+        dbContext.LeaveCategories.Add(category);
+        await dbContext.SaveChangesAsync();
+
+        var result = (await useCase.ExecuteAsync(orgId)).ToList();
+
+        Assert.Single(result);
+        var item = result.First();
+        Assert.Equal(category.Id, item.Id);
+        Assert.Equal(category.OrganizationId, item.OrganizationId);
+        Assert.Equal(category.Name, item.Name);
     }
 }
