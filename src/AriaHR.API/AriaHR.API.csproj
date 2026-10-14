@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Modules\Attendance\Infrastructure\AriaHR.Modules.Attendance.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Requests\API\AriaHR.Modules.Requests.API.csproj" />
     <ProjectReference Include="..\Modules\Requests\Infrastructure\AriaHR.Modules.Requests.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Notification\API\AriaHR.Modules.Notification.API.csproj" />
     <ProjectReference Include="..\Modules\Notification\Infrastructure\AriaHR.Modules.Notification.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Reporting\Infrastructure\AriaHR.Modules.Reporting.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Payroll\Infrastructure\AriaHR.Modules.Payroll.Infrastructure.csproj" />

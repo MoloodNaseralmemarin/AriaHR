@@ -17,34 +17,38 @@ public class UserDeviceRepository : IUserDeviceRepository
     public async Task AddAsync(UserDevice userDevice, CancellationToken cancellationToken = default)
     {
         await _dbContext.UserDevices.AddAsync(userDevice, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<UserDevice?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbContext.UserDevices
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
     }
 
     public async Task<IReadOnlyList<UserDevice>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.UserDevices
-            .AsNoTracking()
             .Where(x => x.UserId == userId && x.IsActive && !x.IsDeleted)
             .OrderByDescending(x => x.LastActiveDate)
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<UserDevice?> GetByDeviceTokenAsync(string deviceToken, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.UserDevices
+            .FirstOrDefaultAsync(x => x.DeviceToken == deviceToken && !x.IsDeleted, cancellationToken);
+    }
+
     public async Task<UserDevice?> GetByUserIdAndDeviceTokenAsync(Guid userId, string deviceToken, CancellationToken cancellationToken = default)
     {
         return await _dbContext.UserDevices
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.DeviceToken == deviceToken && !x.IsDeleted, cancellationToken);
     }
 
-    public Task UpdateAsync(UserDevice userDevice, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(UserDevice userDevice, CancellationToken cancellationToken = default)
     {
         _dbContext.UserDevices.Update(userDevice);
-        return Task.CompletedTask;
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

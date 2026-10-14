@@ -7,6 +7,8 @@ using AriaHR.Modules.Scheduling.Infrastructure;
 using AriaHR.Modules.Identity.Infrastructure;
 using AriaHR.Modules.Organization.API;
 using AriaHR.Modules.Organization.Infrastructure;
+using AriaHR.Modules.Notification.API;
+using AriaHR.Modules.Notification.Infrastructure;
 using AriaHR.Modules.Requests.API;
 using AriaHR.Modules.Requests.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -29,6 +31,7 @@ builder.Services.AddIdentityApi();
 builder.Services.AddOrganizationApi();
 builder.Services.AddSchedulingApi();
 builder.Services.AddRequestsApi();
+builder.Services.AddNotificationApi();
 
 // OpenAPI & Bearer Authentication Configuration for Scalar API Reference
 builder.Services.AddOpenApi(options =>
@@ -134,6 +137,7 @@ builder.Services.AddAttendanceModule(builder.Configuration);
 builder.Services.AddSchedulingModule(builder.Configuration);
 
 builder.Services.AddRequestsModule(builder.Configuration);
+builder.Services.AddNotificationModule(builder.Configuration);
 
 var app = builder.Build();
 
