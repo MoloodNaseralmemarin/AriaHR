@@ -25,6 +25,7 @@ public class LeaveCategoryRepository : ILeaveCategoryRepository
         return await _dbContext.LeaveCategories
             .AsNoTracking()
             .Where(lt => lt.OrganizationId == organizationId && lt.IsActive && !lt.IsDeleted)
+            .OrderBy(lt => lt.Name)
             .ToListAsync(cancellationToken);
     }
 
