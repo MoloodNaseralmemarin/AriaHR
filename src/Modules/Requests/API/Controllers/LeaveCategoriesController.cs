@@ -45,7 +45,7 @@ public class LeaveCategoriesController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "CenterManager,SystemAdmin,Employee")]
-    [ProducesResponseType(typeof(IEnumerable<LeaveCategoryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IEnumerable<LeaveCategoryListItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
