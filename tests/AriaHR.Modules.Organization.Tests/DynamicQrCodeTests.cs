@@ -6,6 +6,7 @@ using AriaHR.Modules.Organization.Application.Options;
 using AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
 using AriaHR.Modules.Organization.Application.UseCases.GenerateQrCode;
 using AriaHR.Modules.Organization.Domain.Entities;
+using AriaHR.Modules.Organization.Domain.Enums;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
 using AriaHR.Shared.Services;

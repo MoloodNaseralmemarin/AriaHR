@@ -11,7 +11,7 @@ using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using OrganizationEntity = AriaHR.Modules.Organization.Domain.Entities.Organization;
-using OrganizationType = AriaHR.Modules.Organization.Domain.Entities.OrganizationType;
+using OrganizationType = AriaHR.Modules.Organization.Domain.Enums.OrganizationType;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
 using AriaHR.Modules.Organization.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;

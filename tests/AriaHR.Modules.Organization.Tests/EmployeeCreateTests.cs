@@ -9,6 +9,7 @@ using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateEmployee;
 using AriaHR.Modules.Organization.Application.UseCases.GetEmployees;
 using AriaHR.Modules.Organization.Domain.Entities;
+using AriaHR.Modules.Organization.Domain.Enums;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Services;
 using AriaHR.Shared.Services;

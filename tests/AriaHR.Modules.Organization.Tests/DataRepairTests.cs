@@ -5,7 +5,7 @@ using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 using OrganizationEntity = AriaHR.Modules.Organization.Domain.Entities.Organization;
-using OrganizationType = AriaHR.Modules.Organization.Domain.Entities.OrganizationType;
+using OrganizationType = AriaHR.Modules.Organization.Domain.Enums.OrganizationType;
 
 namespace AriaHR.Modules.Organization.Tests;
 
