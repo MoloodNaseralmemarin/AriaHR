@@ -20,7 +20,7 @@ public class OrganizationDto
     public string? ManagerEmail { get; set; }
     public bool IsActive { get; set; }
 
-    public OrganizationType Type { get; set; }
+    public OrganizationType OrganizationType { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public Guid? CreatedByUserId { get; set; }
 }
