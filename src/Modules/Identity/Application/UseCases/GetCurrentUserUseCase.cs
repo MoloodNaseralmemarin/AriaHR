@@ -16,7 +16,7 @@ public class GetCurrentUserUseCase
         _userRoleRepository = userRoleRepository;
     }
 
-    public async Task<UserResponse?> ExecuteAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task<CurrentUserResponse?> ExecuteAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null || !user.IsActive)
@@ -27,13 +27,12 @@ public class GetCurrentUserUseCase
         var roles = await _userRoleRepository.GetRolesByUserIdAsync(user.Id, cancellationToken);
         var roleNames = roles.Select(r => r.Name).ToList();
 
-        return new UserResponse(
+        return new CurrentUserResponse(
             user.Id,
             user.FirstName,
             user.LastName,
             user.PhoneNumber,
             roleNames,
-            user.OrganizationId,
-            user.Gender);
+            user.OrganizationId);
     }
 }
