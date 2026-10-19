@@ -8,7 +8,9 @@ using AriaHR.Modules.Organization.Application.UseCases.GenerateQrCode;
 using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using AriaHR.Modules.Organization.Application.UseCases.GetEmployees;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentActivities;
+using AriaHR.Modules.Organization.Application.UseCases.GetRecentCenters;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
+using AriaHR.Modules.Organization.Application.UseCases.GetSystemAdminDashboardOverview;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
@@ -60,6 +62,9 @@ public static class DependencyInjection
         services.AddScoped<IGetTotalOrganizationsCountUseCase, GetTotalOrganizationsCountUseCase>();
         services.AddScoped<IGetRecentOrganizationsUseCase, GetRecentOrganizationsUseCase>();
         services.AddScoped<IGetRecentActivitiesUseCase, GetRecentActivitiesUseCase>();
+        services.AddScoped<IGetSystemAdminDashboardOverviewUseCase, GetSystemAdminDashboardOverviewUseCase>();
+        services.AddScoped<IGetRecentCentersUseCase, GetRecentCentersUseCase>();
+        services.AddScoped<IGetSystemAdminRecentActivitiesUseCase, GetSystemAdminRecentActivitiesUseCase>();
 
         return services;
     }
