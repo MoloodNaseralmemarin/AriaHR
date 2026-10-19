@@ -1,4 +1,4 @@
-using AriaHR.Modules.Organization.Domain.Entities;
+using AriaHR.Modules.Organization.Domain.Enums;
 
 namespace AriaHR.Modules.Organization.Application.DTOs;
 

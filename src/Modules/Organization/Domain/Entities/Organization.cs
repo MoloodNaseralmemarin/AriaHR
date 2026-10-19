@@ -1,3 +1,4 @@
+using AriaHR.Modules.Organization.Domain.Enums;
 using AriaHR.Shared;
 
 namespace AriaHR.Modules.Organization.Domain.Entities;

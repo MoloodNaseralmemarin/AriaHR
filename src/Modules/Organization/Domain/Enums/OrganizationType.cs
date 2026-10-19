@@ -1,4 +1,4 @@
-namespace AriaHR.Modules.Organization.Domain.Entities;
+namespace AriaHR.Modules.Organization.Domain.Enums;
 
 public enum OrganizationType
 {
