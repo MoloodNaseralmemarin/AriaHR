@@ -270,7 +270,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task GetCurrentUser_Authenticated_Returns200OK_WithUserData()
+    public async Task GetCurrentUser_Authenticated_Returns200OK_WithUserData_AndDoesNotContainGender()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -313,13 +313,15 @@ public class AuthControllerTests
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var response = Assert.IsType<UserResponse>(okResult.Value);
+        var response = Assert.IsType<CurrentUserResponse>(okResult.Value);
 
         Assert.Equal(user.Id, response.Id);
         Assert.Equal("مولود", response.FirstName);
         Assert.Equal("ناصرالمعمارین", response.LastName);
-        Assert.Equal("Female", response.Gender);
         Assert.Contains("SystemAdmin", response.Roles);
+
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.DoesNotContain("gender", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -367,7 +369,7 @@ public class AuthControllerTests
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var response = Assert.IsType<UserResponse>(okResult.Value);
+        var response = Assert.IsType<CurrentUserResponse>(okResult.Value);
 
         Assert.Equal(user.Id, response.Id);
         Assert.Equal(orgId, response.OrganizationId);
