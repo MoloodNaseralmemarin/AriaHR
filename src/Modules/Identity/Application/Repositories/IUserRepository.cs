@@ -1,3 +1,4 @@
+using AriaHR.Modules.Identity.Application.DTOs;
 using AriaHR.Modules.Identity.Domain.Entities;
 
 namespace AriaHR.Modules.Identity.Application.Repositories;
@@ -11,4 +12,5 @@ public interface IUserRepository
     Task AddAsync(User user, CancellationToken cancellationToken = default);
     Task UpdateAsync(User user, CancellationToken cancellationToken = default);
     Task<int> GetCountByRoleNameAsync(string roleName, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CenterManagerDto>> GetCenterManagersAsync(Guid? organizationId = null, CancellationToken cancellationToken = default);
 }

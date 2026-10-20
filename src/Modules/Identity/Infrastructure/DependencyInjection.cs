@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<VerifyOtpUseCase>();
         services.AddScoped<GetCurrentUserUseCase>();
         services.AddScoped<LogoutUseCase>();
+        services.AddScoped<IGetCenterManagersUseCase, GetCenterManagersUseCase>();
 
         return services;
     }
