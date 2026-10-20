@@ -35,38 +35,51 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
 
         if (string.IsNullOrWhiteSpace(request.Name))
         {
-            throw new ArgumentException("Organization Name is required.", nameof(request.Name));
+            throw new ArgumentException("نام سازمان الزامی است.", nameof(request.Name));
         }
 
         if (string.IsNullOrWhiteSpace(request.Code))
         {
-            throw new ArgumentException("Organization Code is required.", nameof(request.Code));
+            throw new ArgumentException("کد سازمان الزامی است.", nameof(request.Code));
         }
 
         if (!Enum.IsDefined(typeof(OrganizationType), request.Type))
         {
-            throw new ArgumentException("Invalid Organization Type.", nameof(request.Type));
+            throw new ArgumentException("نوع سازمان نامعتبر است.", nameof(request.Type));
         }
 
         if (string.IsNullOrWhiteSpace(request.ManagerFirstName))
         {
-            throw new ArgumentException("Manager First Name is required.", nameof(request.ManagerFirstName));
+            throw new ArgumentException("نام مدیر الزامی است.", nameof(request.ManagerFirstName));
         }
 
         if (string.IsNullOrWhiteSpace(request.ManagerLastName))
         {
-            throw new ArgumentException("Manager Last Name is required.", nameof(request.ManagerLastName));
+            throw new ArgumentException("نام خانوادگی مدیر الزامی است.", nameof(request.ManagerLastName));
         }
 
         if (string.IsNullOrWhiteSpace(request.ManagerMobile))
         {
-            throw new ArgumentException("Manager Mobile is required.", nameof(request.ManagerMobile));
+            throw new ArgumentException("شماره موبایل مدیر الزامی است.", nameof(request.ManagerMobile));
         }
 
         string normalizedMobile = MobileNumberNormalizer.Normalize(request.ManagerMobile);
         if (string.IsNullOrWhiteSpace(normalizedMobile))
         {
-            throw new ArgumentException("Manager Mobile is invalid.", nameof(request.ManagerMobile));
+            throw new ArgumentException("شماره موبایل مدیر نامعتبر است.", nameof(request.ManagerMobile));
+        }
+
+        string? normalizedEmail = null;
+        if (!string.IsNullOrWhiteSpace(request.ManagerEmail))
+        {
+            var trimmedEmail = request.ManagerEmail.Trim();
+            var emailAttr = new System.ComponentModel.DataAnnotations.EmailAddressAttribute();
+            int atIdx = trimmedEmail.IndexOf('@');
+            if (!emailAttr.IsValid(trimmedEmail) || atIdx <= 0 || atIdx == trimmedEmail.Length - 1 || !trimmedEmail.Substring(atIdx + 1).Contains('.'))
+            {
+                throw new ArgumentException("فرمت ایمیل مدیر نامعتبر است.", nameof(request.ManagerEmail));
+            }
+            normalizedEmail = trimmedEmail;
         }
 
         bool isRelational = _organizationDbContext.Database.IsRelational() && _identityDbContext.Database.IsRelational();
@@ -101,7 +114,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
 
             if (existingUser != null && existingUser.OrganizationId.HasValue && existingUser.OrganizationId.Value != orgId)
             {
-                throw new ArgumentException("A user with this mobile number is already assigned to another organization.", nameof(request.ManagerMobile));
+                throw new ArgumentException("کاربری با این شماره موبایل قبلاً به سازمان دیگری اختصاص یافته است.", nameof(request.ManagerMobile));
             }
 
             // 3. Create Organization
@@ -117,6 +130,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 ManagerFirstName = request.ManagerFirstName.Trim(),
                 ManagerLastName = request.ManagerLastName.Trim(),
                 ManagerMobile = normalizedMobile,
+                ManagerEmail = normalizedEmail,
                 IsActive = request.IsActive,
                 CreatedAtUtc = DateTime.UtcNow,
                 CreatedByUserId = createdByUserId
@@ -146,9 +160,9 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     existingUser.LastName = request.ManagerLastName.Trim();
                 }
 
-                if (!string.IsNullOrWhiteSpace(request.ManagerEmail))
+                if (normalizedEmail != null)
                 {
-                    existingUser.Email = request.ManagerEmail.Trim();
+                    existingUser.Email = normalizedEmail;
                 }
 
                 existingUser.IsActive = true;
@@ -180,7 +194,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     FirstName = request.ManagerFirstName.Trim(),
                     LastName = request.ManagerLastName.Trim(),
                     PhoneNumber = normalizedMobile,
-                    Email = request.ManagerEmail,
+                    Email = normalizedEmail,
                     OrganizationId = organization.Id,
                     IsActive = true,
                     CreatedAtUtc = now,
@@ -220,6 +234,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 ManagerFirstName = organization.ManagerFirstName,
                 ManagerLastName = organization.ManagerLastName,
                 ManagerMobile = organization.ManagerMobile,
+                ManagerEmail = organization.ManagerEmail,
                 IsActive = organization.IsActive,
                 CreatedAtUtc = organization.CreatedAtUtc,
                 CreatedByUserId = organization.CreatedByUserId
@@ -235,7 +250,13 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
             if (ex.InnerException?.Message.Contains("IX_Users_PhoneNumber") == true ||
                 ex.Message.Contains("IX_Users_PhoneNumber"))
             {
-                throw new ArgumentException("A user with this mobile number already exists.", nameof(request.ManagerMobile), ex);
+                throw new ArgumentException("کاربری با این شماره موبایل قبلاً ثبت شده است.", nameof(request.ManagerMobile), ex);
+            }
+
+            if (ex.InnerException?.Message.Contains("IX_Users_Email") == true ||
+                ex.Message.Contains("IX_Users_Email"))
+            {
+                throw new ArgumentException("این ایمیل قبلاً ثبت شده است.", nameof(request.ManagerEmail), ex);
             }
 
             throw;

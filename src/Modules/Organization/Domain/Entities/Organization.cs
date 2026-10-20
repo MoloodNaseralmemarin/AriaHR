@@ -23,6 +23,7 @@ public class Organization : BaseEntity
     public string? ManagerEmail { get; set; }
     public bool IsActive { get; set; }
     public OrganizationType OrganizationType { get; set; }
+    public OrganizationType Type { get => OrganizationType; set => OrganizationType = value; }
 
     public ICollection<Branch> Branches { get; set; } = new List<Branch>();
     public ICollection<Department> Departments { get; set; } = new List<Department>();
