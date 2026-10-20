@@ -85,7 +85,7 @@ public class OrganizationCreateTests
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal($"Aria Health Center {orgType}", result.Name);
         Assert.Equal($"ORG-{orgType}", result.Code);
-        Assert.Equal(orgType, result.Type);
+        Assert.Equal(orgType, result.OrganizationType);
         Assert.Equal("Ali", result.ManagerFirstName);
         Assert.Equal("Ahmadi", result.ManagerLastName);
         Assert.Equal("09123456789", result.ManagerMobile);
@@ -386,7 +386,7 @@ public class OrganizationCreateTests
 
         var dto = Assert.IsType<OrganizationDto>(objectResult.Value);
         Assert.Equal("SystemAdmin Org", dto.Name);
-        Assert.Equal(OrganizationType.ImagingCenter, dto.Type);
+        Assert.Equal(OrganizationType.ImagingCenter, dto.OrganizationType);
         Assert.Equal(expectedUserId, dto.CreatedByUserId);
     }
 
@@ -521,7 +521,8 @@ public class OrganizationCreateTests
     {
         // Arrange & Act
         var controllerType = typeof(OrganizationsController);
-        var authorizeAttr = controllerType.GetCustomAttribute<AuthorizeAttribute>();
+        var createMethod = controllerType.GetMethod("Create");
+        var authorizeAttr = createMethod?.GetCustomAttribute<AuthorizeAttribute>();
 
         // Assert
         Assert.NotNull(authorizeAttr);

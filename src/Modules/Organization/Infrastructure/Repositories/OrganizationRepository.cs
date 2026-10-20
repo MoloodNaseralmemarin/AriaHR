@@ -14,6 +14,21 @@ public class OrganizationRepository : IOrganizationRepository
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
+    public async Task<Domain.Entities.Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Organizations
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Domain.Entities.Organization>> GetOrganizationsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Organizations
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task AddAsync(Domain.Entities.Organization organization, CancellationToken cancellationToken = default)
     {
         await _dbContext.Organizations.AddAsync(organization, cancellationToken);

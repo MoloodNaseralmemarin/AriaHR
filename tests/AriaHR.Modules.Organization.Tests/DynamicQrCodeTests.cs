@@ -45,7 +45,7 @@ public class DynamicQrCodeTests
             Id = orgId,
             Name = "Tehran Medical Center",
             Code = "TMC-101",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
 

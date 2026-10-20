@@ -62,7 +62,7 @@ public class DataRepairTests
             Id = expectedOrgId,
             Name = "Aria Medical Center",
             Code = "AMC-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             ManagerFirstName = "فاطمه",
             ManagerLastName = "سالمی",
             ManagerMobile = targetPhone,
@@ -116,8 +116,8 @@ public class DataRepairTests
 
         // Two organizations with the exact same ManagerMobile
         orgDb.Organizations.AddRange(
-            new OrganizationEntity { Id = Guid.NewGuid(), Name = "Org 1", Code = "O1", Type = OrganizationType.Clinic, ManagerMobile = phone },
-            new OrganizationEntity { Id = Guid.NewGuid(), Name = "Org 2", Code = "O2", Type = OrganizationType.Laboratory, ManagerMobile = phone }
+            new OrganizationEntity { Id = Guid.NewGuid(), Name = "Org 1", Code = "O1", OrganizationType = OrganizationType.Clinic, ManagerMobile = phone },
+            new OrganizationEntity { Id = Guid.NewGuid(), Name = "Org 2", Code = "O2", OrganizationType = OrganizationType.Laboratory, ManagerMobile = phone }
         );
         orgDb.SaveChanges();
 
