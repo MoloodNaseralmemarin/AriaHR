@@ -69,19 +69,6 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
             throw new ArgumentException("شماره موبایل مدیر نامعتبر است.", nameof(request.ManagerMobile));
         }
 
-        string? normalizedEmail = null;
-        if (!string.IsNullOrWhiteSpace(request.ManagerEmail))
-        {
-            var trimmedEmail = request.ManagerEmail.Trim();
-            var emailAttr = new System.ComponentModel.DataAnnotations.EmailAddressAttribute();
-            int atIdx = trimmedEmail.IndexOf('@');
-            if (!emailAttr.IsValid(trimmedEmail) || atIdx <= 0 || atIdx == trimmedEmail.Length - 1 || !trimmedEmail.Substring(atIdx + 1).Contains('.'))
-            {
-                throw new ArgumentException("فرمت ایمیل مدیر نامعتبر است.", nameof(request.ManagerEmail));
-            }
-            normalizedEmail = trimmedEmail;
-        }
-
         bool isRelational = _organizationDbContext.Database.IsRelational() && _identityDbContext.Database.IsRelational();
 
         IDbContextTransaction? transaction = null;
@@ -159,11 +146,6 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     existingUser.LastName = request.ManagerLastName.Trim();
                 }
 
-                if (normalizedEmail != null)
-                {
-                    existingUser.Email = normalizedEmail;
-                }
-
                 existingUser.IsActive = true;
 
                 // Ensure CenterManager role is assigned
@@ -193,7 +175,6 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     FirstName = request.ManagerFirstName.Trim(),
                     LastName = request.ManagerLastName.Trim(),
                     PhoneNumber = normalizedMobile,
-                    Email = normalizedEmail,
                     OrganizationId = organization.Id,
                     IsActive = true,
                     CreatedAtUtc = now,
@@ -248,12 +229,6 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 ex.Message.Contains("IX_Users_PhoneNumber"))
             {
                 throw new ArgumentException("کاربری با این شماره موبایل قبلاً ثبت شده است.", nameof(request.ManagerMobile), ex);
-            }
-
-            if (ex.InnerException?.Message.Contains("IX_Users_Email") == true ||
-                ex.Message.Contains("IX_Users_Email"))
-            {
-                throw new ArgumentException("این ایمیل قبلاً ثبت شده است.", nameof(request.ManagerEmail), ex);
             }
 
             throw;

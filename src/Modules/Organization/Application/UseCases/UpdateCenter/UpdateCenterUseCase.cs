@@ -40,6 +40,19 @@ public class UpdateCenterUseCase : IUpdateCenterUseCase
             throw new ArgumentException("کد مرکز الزامی است.", nameof(request.Code));
         }
 
+        string? normalizedEmail = null;
+        if (!string.IsNullOrWhiteSpace(request.Email))
+        {
+            var trimmedEmail = request.Email.Trim();
+            var emailAttr = new System.ComponentModel.DataAnnotations.EmailAddressAttribute();
+            int atIdx = trimmedEmail.IndexOf('@');
+            if (!emailAttr.IsValid(trimmedEmail) || atIdx <= 0 || atIdx == trimmedEmail.Length - 1 || !trimmedEmail.Substring(atIdx + 1).Contains('.'))
+            {
+                throw new ArgumentException("فرمت ایمیل مرکز نامعتبر است.", nameof(request.Email));
+            }
+            normalizedEmail = trimmedEmail;
+        }
+
         var branch = await _branchRepository.GetByIdAsync(centerId, cancellationToken);
         if (branch == null || branch.IsDeleted)
         {
@@ -58,6 +71,7 @@ public class UpdateCenterUseCase : IUpdateCenterUseCase
         branch.Code = request.Code.Trim();
         branch.Address = request.Address?.Trim();
         branch.Phone = request.Phone?.Trim();
+        branch.Email = normalizedEmail;
         branch.UpdatedAtUtc = DateTime.UtcNow;
         branch.UpdatedByUserId = currentUserId;
 
@@ -72,6 +86,7 @@ public class UpdateCenterUseCase : IUpdateCenterUseCase
             Code = branch.Code,
             Address = branch.Address,
             Phone = branch.Phone,
+            Email = branch.Email,
             IsActive = branch.IsActive
         };
     }

@@ -47,6 +47,9 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("DeletedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Email")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -228,9 +231,6 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<string>("ManagerEmail")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("ManagerFirstName")
                         .HasColumnType("nvarchar(max)");
 
@@ -247,11 +247,11 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.Property<string>("NationalIdentifier")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("OrganizationType")
+                        .HasColumnType("int");
+
                     b.Property<string>("Phone")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");

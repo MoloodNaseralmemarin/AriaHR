@@ -25,8 +25,5 @@ public class CreateOrganizationRequest
     [Required(ErrorMessage = "شماره موبایل مدیر الزامی است.")]
     public string? ManagerMobile { get; set; }
 
-    [EmailAddress(ErrorMessage = "فرمت ایمیل مدیر نامعتبر است.")]
-    public string? ManagerEmail { get; set; }
-
     public bool IsActive { get; set; } = true;
 }
