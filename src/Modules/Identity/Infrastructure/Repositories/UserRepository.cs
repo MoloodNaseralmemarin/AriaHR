@@ -1,3 +1,4 @@
+using AriaHR.Modules.Identity.Application.DTOs;
 using AriaHR.Modules.Identity.Application.Repositories;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
@@ -59,5 +60,36 @@ public class UserRepository : IUserRepository
                       select user.Id)
                      .Distinct()
                      .CountAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CenterManagerDto>> GetCenterManagersAsync(Guid? organizationId = null, CancellationToken cancellationToken = default)
+    {
+        var query = from user in _dbContext.Users.AsNoTracking()
+                    join userRole in _dbContext.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
+                    join role in _dbContext.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                    where !user.IsDeleted && role.Name == "CenterManager"
+                    select user;
+
+        if (organizationId.HasValue)
+        {
+            query = query.Where(u => u.OrganizationId == organizationId.Value);
+        }
+
+        return await query
+            .Distinct()
+            .OrderByDescending(u => u.CreatedAtUtc)
+            .Select(u => new CenterManagerDto
+            {
+                Id = u.Id,
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+                PhoneNumber = u.PhoneNumber,
+                Email = u.Email,
+                Gender = u.Gender,
+                OrganizationId = u.OrganizationId,
+                IsActive = u.IsActive,
+                CreatedAtUtc = u.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
     }
 }
