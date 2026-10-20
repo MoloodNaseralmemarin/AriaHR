@@ -130,7 +130,6 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 ManagerFirstName = request.ManagerFirstName.Trim(),
                 ManagerLastName = request.ManagerLastName.Trim(),
                 ManagerMobile = normalizedMobile,
-                ManagerEmail = normalizedEmail,
                 IsActive = request.IsActive,
                 CreatedAtUtc = DateTime.UtcNow,
                 CreatedByUserId = createdByUserId
@@ -233,9 +232,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 Address = organization.Address,
                 ManagerFirstName = organization.ManagerFirstName,
                 ManagerLastName = organization.ManagerLastName,
-                ManagerMobile = organization.ManagerMobile,
-                ManagerEmail = organization.ManagerEmail,
-                IsActive = organization.IsActive,
+                ManagerMobile = organization.ManagerMobile,                IsActive = organization.IsActive,
                 CreatedAtUtc = organization.CreatedAtUtc,
                 CreatedByUserId = organization.CreatedByUserId
             };
