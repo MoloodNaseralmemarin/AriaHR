@@ -199,7 +199,7 @@ public class OrganizationCreateTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
-        Assert.Contains("already assigned to another organization", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("کاربری با این شماره موبایل قبلاً به سازمان دیگری اختصاص یافته است.", ex.Message);
 
         // Verify User's OrganizationId was NOT changed
         var dbUser = await identityDb.Users.FirstAsync(u => u.Id == existingUser.Id);
@@ -207,7 +207,7 @@ public class OrganizationCreateTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithMissingManagerFirstName_ThrowsArgumentException()
+    public async Task ExecuteAsync_WithValidManagerEmail_PersistsEmailOnOrganizationAndUser()
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
@@ -216,16 +216,125 @@ public class OrganizationCreateTests
 
         var request = new CreateOrganizationRequest
         {
-            Name = "Valid Name",
-            Code = "CODE-01",
+            Name = "Aria Clinic",
+            Code = "AC-100",
             Type = OrganizationType.Clinic,
-            ManagerFirstName = "",
-            ManagerLastName = "Ahmadi",
-            ManagerMobile = "09123456789"
+            ManagerFirstName = "Sina",
+            ManagerLastName = "Rezai",
+            ManagerMobile = "09121112233",
+            ManagerEmail = "  sina.rezai@example.com  "
+        };
+
+        // Act
+        var result = await useCase.ExecuteAsync(request, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("sina.rezai@example.com", result.ManagerEmail);
+
+        var dbOrg = await orgDb.Organizations.FirstOrDefaultAsync(o => o.Id == result.Id);
+        Assert.NotNull(dbOrg);
+        Assert.Equal("sina.rezai@example.com", dbOrg.ManagerEmail);
+
+        var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.PhoneNumber == "09121112233");
+        Assert.NotNull(dbUser);
+        Assert.Equal("sina.rezai@example.com", dbUser.Email);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ExecuteAsync_WithNullOrWhitespaceManagerEmail_PersistsNullOnOrganizationAndUser(string? emailInput)
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
+        var useCase = new CreateOrganizationUseCase(managerIdentityService);
+
+        var request = new CreateOrganizationRequest
+        {
+            Name = "Aria Clinic",
+            Code = "AC-101",
+            Type = OrganizationType.Clinic,
+            ManagerFirstName = "Sina",
+            ManagerLastName = "Rezai",
+            ManagerMobile = "09121112234",
+            ManagerEmail = emailInput
+        };
+
+        // Act
+        var result = await useCase.ExecuteAsync(request, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Null(result.ManagerEmail);
+
+        var dbOrg = await orgDb.Organizations.FirstOrDefaultAsync(o => o.Id == result.Id);
+        Assert.NotNull(dbOrg);
+        Assert.Null(dbOrg.ManagerEmail);
+
+        var dbUser = await identityDb.Users.FirstOrDefaultAsync(u => u.PhoneNumber == "09121112234");
+        Assert.NotNull(dbUser);
+        Assert.Null(dbUser.Email);
+    }
+
+    [Theory]
+    [InlineData("invalid-email")]
+    [InlineData("user@")]
+    [InlineData("@domain.com")]
+    [InlineData("user@domain")]
+    public async Task ExecuteAsync_WithInvalidManagerEmail_ThrowsArgumentExceptionWithPersianMessage(string invalidEmail)
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
+        var useCase = new CreateOrganizationUseCase(managerIdentityService);
+
+        var request = new CreateOrganizationRequest
+        {
+            Name = "Aria Clinic",
+            Code = "AC-102",
+            Type = OrganizationType.Clinic,
+            ManagerFirstName = "Sina",
+            ManagerLastName = "Rezai",
+            ManagerMobile = "09121112235",
+            ManagerEmail = invalidEmail
         };
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
+        Assert.Equal("فرمت ایمیل مدیر نامعتبر است. (Parameter 'ManagerEmail')", ex.Message);
+        Assert.Empty(orgDb.Organizations);
+    }
+
+    [Theory]
+    [InlineData("", "CODE", "Ali", "Ahmadi", "09123456789", "نام سازمان الزامی است.")]
+    [InlineData("Name", "", "Ali", "Ahmadi", "09123456789", "کد سازمان الزامی است.")]
+    [InlineData("Name", "CODE", "", "Ahmadi", "09123456789", "نام مدیر الزامی است.")]
+    [InlineData("Name", "CODE", "Ali", "", "09123456789", "نام خانوادگی مدیر الزامی است.")]
+    [InlineData("Name", "CODE", "Ali", "Ahmadi", "", "شماره موبایل مدیر الزامی است.")]
+    public async Task ExecuteAsync_WithMissingRequiredFields_ThrowsArgumentExceptionWithPersianMessage(
+        string name, string code, string managerFirstName, string managerLastName, string managerMobile, string expectedMessage)
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+        var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
+        var useCase = new CreateOrganizationUseCase(managerIdentityService);
+
+        var request = new CreateOrganizationRequest
+        {
+            Name = name,
+            Code = code,
+            Type = OrganizationType.Clinic,
+            ManagerFirstName = managerFirstName,
+            ManagerLastName = managerLastName,
+            ManagerMobile = managerMobile
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
+        Assert.Contains(expectedMessage, ex.Message);
         Assert.Empty(orgDb.Organizations);
         Assert.Empty(identityDb.Users);
     }
@@ -336,7 +445,7 @@ public class OrganizationCreateTests
 
         var problemDetails = Assert.IsType<ProblemDetails>(badRequestResult.Value);
         Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
-        Assert.Contains("already assigned to another organization", problemDetails.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("کاربری با این شماره موبایل قبلاً به سازمان دیگری اختصاص یافته است.", problemDetails.Detail);
     }
 
     [Fact]

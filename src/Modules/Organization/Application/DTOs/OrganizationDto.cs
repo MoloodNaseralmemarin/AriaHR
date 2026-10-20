@@ -21,6 +21,7 @@ public class OrganizationDto
     public bool IsActive { get; set; }
 
     public OrganizationType OrganizationType { get; set; }
+    public OrganizationType Type { get => OrganizationType; set => OrganizationType = value; }
     public DateTime CreatedAtUtc { get; set; }
     public Guid? CreatedByUserId { get; set; }
 }

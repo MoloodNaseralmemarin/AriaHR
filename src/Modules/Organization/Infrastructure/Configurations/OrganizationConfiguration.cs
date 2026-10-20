@@ -19,6 +19,8 @@ public sealed class OrganizationConfiguration : IEntityTypeConfiguration<Domain.
         builder.Property(x => x.OrganizationType)
             .IsRequired();
 
+        builder.Ignore(x => x.Type);
+
         builder.HasMany(x => x.Branches)
             .WithOne(x => x.Organization)
             .HasForeignKey(x => x.OrganizationId)
