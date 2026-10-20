@@ -4,6 +4,8 @@ namespace AriaHR.Modules.Organization.Application.Repositories;
 
 public interface IOrganizationRepository
 {
+    Task<Domain.Entities.Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Domain.Entities.Organization>> GetOrganizationsAsync(CancellationToken cancellationToken = default);
     Task AddAsync(Domain.Entities.Organization organization, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<int> CountAsync(CancellationToken cancellationToken = default);

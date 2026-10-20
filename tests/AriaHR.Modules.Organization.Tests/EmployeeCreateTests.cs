@@ -111,7 +111,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -180,7 +180,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -226,7 +226,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -279,7 +279,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -326,7 +326,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -370,7 +370,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -414,7 +414,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -453,7 +453,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -495,7 +495,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -535,7 +535,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Hospital",
             Code = "H1",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -601,7 +601,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Hospital",
             Code = "H1",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -663,7 +663,7 @@ public class EmployeeCreateTests
             Id = targetOrgId,
             Name = "Target Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -729,7 +729,7 @@ public class EmployeeCreateTests
                 Id = orgId,
                 Name = "Sqlite Hospital",
                 Code = "SQ-01",
-                Type = OrganizationType.Clinic,
+                OrganizationType = OrganizationType.Clinic,
                 IsActive = true
             });
             await orgDb.SaveChangesAsync();
@@ -788,7 +788,7 @@ public class EmployeeCreateTests
                 Id = orgId,
                 Name = "Sqlite Hospital",
                 Code = "SQ-01",
-                Type = OrganizationType.Clinic,
+                OrganizationType = OrganizationType.Clinic,
                 IsActive = true
             });
             await orgDb.SaveChangesAsync();
@@ -839,7 +839,7 @@ public class EmployeeCreateTests
                 Id = orgId,
                 Name = "Sqlite Hospital",
                 Code = "SQ-01",
-                Type = OrganizationType.Clinic,
+                OrganizationType = OrganizationType.Clinic,
                 IsActive = true
             });
 
@@ -902,7 +902,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -1027,7 +1027,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Hospital",
             Code = "H1",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
 
@@ -1076,7 +1076,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Hospital",
             Code = "H1",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
 
@@ -1125,7 +1125,7 @@ public class EmployeeCreateTests
             Id = managerOrgId,
             Name = "Center Manager Hospital",
             Code = "CMH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -1234,7 +1234,7 @@ public class EmployeeCreateTests
             Id = targetOrgId,
             Name = "SysAdmin Target Org",
             Code = "SATO-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -1308,7 +1308,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -1355,7 +1355,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -1402,7 +1402,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -1453,7 +1453,7 @@ public class EmployeeCreateTests
             Id = orgId,
             Name = "Test Hospital",
             Code = "TH-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await orgDb.SaveChangesAsync();
@@ -1507,7 +1507,7 @@ public class EmployeeCreateTests
                 Id = orgId,
                 Name = "Sqlite Hospital",
                 Code = "SQ-01",
-                Type = OrganizationType.Clinic,
+                OrganizationType = OrganizationType.Clinic,
                 IsActive = true
             });
             await orgDb.SaveChangesAsync();

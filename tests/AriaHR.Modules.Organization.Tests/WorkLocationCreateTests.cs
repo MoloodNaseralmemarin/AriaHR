@@ -42,7 +42,7 @@ public class WorkLocationCreateTests
             Id = orgId,
             Name = "Tehran Main Clinic",
             Code = "TMC-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await db.SaveChangesAsync();
@@ -179,7 +179,7 @@ public class WorkLocationCreateTests
             Id = orgId,
             Name = "Clinic With Existing WorkLocation",
             Code = "CWE-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
 
@@ -222,7 +222,7 @@ public class WorkLocationCreateTests
             Id = managerOrgId,
             Name = "Manager Clinic",
             Code = "MC-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await db.SaveChangesAsync();
@@ -325,7 +325,7 @@ public class WorkLocationCreateTests
             Id = targetOrgId,
             Name = "Admin Target Org",
             Code = "ATO-01",
-            Type = OrganizationType.Clinic,
+            OrganizationType = OrganizationType.Clinic,
             IsActive = true
         });
         await db.SaveChangesAsync();
