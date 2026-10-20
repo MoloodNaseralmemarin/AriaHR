@@ -1,6 +1,7 @@
 using AriaHR.Modules.Organization.Application.Repositories;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
+using AriaHR.Shared.Utils;
 using Microsoft.EntityFrameworkCore;
 
 namespace AriaHR.Modules.Organization.Infrastructure.Repositories;
@@ -50,5 +51,22 @@ public class EmployeeRepository : IEmployeeRepository
         return await _dbContext.Organizations
             .AsNoTracking()
             .AnyAsync(o => !o.IsDeleted && o.IsActive && o.Id == organizationId, cancellationToken);
+    }
+
+    public async Task<(int TotalCount, int CreatedThisMonth)> GetEmployeesSummaryAsync(DateTime? referenceDateUtc = null, CancellationToken cancellationToken = default)
+    {
+        var (startOfMonthUtc, startOfNextMonthUtc) = JalaliCalendarHelper.GetCurrentJalaliMonthBoundariesUtc(referenceDateUtc);
+
+        var nonDeletedEmployees = _dbContext.Employees
+            .AsNoTracking()
+            .Where(e => !e.IsDeleted);
+
+        var totalCount = await nonDeletedEmployees.CountAsync(cancellationToken);
+
+        var createdThisMonth = await nonDeletedEmployees
+            .Where(e => e.CreatedAtUtc >= startOfMonthUtc && e.CreatedAtUtc < startOfNextMonthUtc)
+            .CountAsync(cancellationToken);
+
+        return (totalCount, createdThisMonth);
     }
 }

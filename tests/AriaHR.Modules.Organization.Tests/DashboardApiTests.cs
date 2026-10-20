@@ -2,13 +2,16 @@ using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentActivities;
+using AriaHR.Modules.Organization.Application.UseCases.GetRecentCenters;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
+using AriaHR.Modules.Organization.Application.UseCases.GetSystemAdminDashboardOverview;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
 using AriaHR.Modules.Organization.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace AriaHR.Modules.Organization.Tests;
@@ -23,7 +26,6 @@ public class DashboardApiTests
 
         return new OrganizationDbContext(options);
     }
-
 
     [Fact]
     public async Task RecentOrganizations_ReturnsLatest3NonDeletedOrganizationsOrderedDescending()
@@ -126,7 +128,10 @@ public class DashboardApiTests
 
         var repository = new OrganizationRepository(dbContext);
         var useCase = new GetRecentActivitiesUseCase(repository);
-        var controller = new DashboardController(useCase);
+        var overviewUseCaseMock = new Mock<IGetSystemAdminDashboardOverviewUseCase>();
+        var recentCentersUseCaseMock = new Mock<IGetRecentCentersUseCase>();
+
+        var controller = new DashboardController(useCase, overviewUseCaseMock.Object, recentCentersUseCaseMock.Object);
 
         // Act
         var actionResult = await controller.GetRecentActivities(CancellationToken.None);

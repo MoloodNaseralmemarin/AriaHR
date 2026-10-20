@@ -10,4 +10,5 @@ public interface IEmployeeRepository
     Task<bool> ExistsByNationalCodeAsync(string nationalCode, CancellationToken cancellationToken = default);
     Task<bool> ExistsByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<bool> OrganizationExistsAsync(Guid organizationId, CancellationToken cancellationToken = default);
+    Task<(int TotalCount, int CreatedThisMonth)> GetEmployeesSummaryAsync(DateTime? referenceDateUtc = null, CancellationToken cancellationToken = default);
 }
