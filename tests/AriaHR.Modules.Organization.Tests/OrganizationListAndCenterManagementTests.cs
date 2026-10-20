@@ -186,6 +186,7 @@ public class OrganizationListAndCenterManagementTests
             Code = "B01",
             Address = "Address 1",
             Phone = "02111111111",
+            Email = "branch1@example.com",
             IsActive = true
         };
         var branch2 = new Branch
@@ -228,7 +229,7 @@ public class OrganizationListAndCenterManagementTests
 
         // Assert
         Assert.Equal(2, result.Count);
-        Assert.Contains(result, b => b.Id == branch1.Id && b.Name == "Branch 1");
+        Assert.Contains(result, b => b.Id == branch1.Id && b.Name == "Branch 1" && b.Email == "branch1@example.com");
         Assert.Contains(result, b => b.Id == branch2.Id && b.Name == "Branch 2");
         Assert.DoesNotContain(result, b => b.Id == otherBranch.Id);
         Assert.DoesNotContain(result, b => b.Id == deletedBranch.Id);
@@ -386,7 +387,8 @@ public class OrganizationListAndCenterManagementTests
             Name = "New Center Name",
             Code = "NEW01",
             Address = "New Address",
-            Phone = "02199999999"
+            Phone = "02199999999",
+            Email = "  info@center.com  "
         };
 
         // Act
@@ -404,6 +406,7 @@ public class OrganizationListAndCenterManagementTests
         Assert.Equal("NEW01", result.Code);
         Assert.Equal("New Address", result.Address);
         Assert.Equal("02199999999", result.Phone);
+        Assert.Equal("info@center.com", result.Email);
         Assert.True(result.IsActive);
 
         var updatedBranch = await db.Branches.FindAsync(centerId);
@@ -412,8 +415,69 @@ public class OrganizationListAndCenterManagementTests
         Assert.Equal("NEW01", updatedBranch.Code);
         Assert.Equal("New Address", updatedBranch.Address);
         Assert.Equal("02199999999", updatedBranch.Phone);
+        Assert.Equal("info@center.com", updatedBranch.Email);
         Assert.Equal(userId, updatedBranch.UpdatedByUserId);
         Assert.NotNull(updatedBranch.UpdatedAtUtc);
+    }
+
+    [Theory]
+    [InlineData("invalid-email")]
+    [InlineData("user@")]
+    [InlineData("@domain.com")]
+    [InlineData("user@domain")]
+    public async Task UpdateCenterUseCase_WithInvalidEmail_ThrowsArgumentExceptionWithPersianMessage(string invalidEmail)
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var centerId = Guid.NewGuid();
+        var branch = new Branch { Id = centerId, OrganizationId = Guid.NewGuid(), Name = "Center", Code = "C01" };
+        db.Branches.Add(branch);
+        await db.SaveChangesAsync();
+
+        var branchRepo = new BranchRepository(db);
+        var useCase = new UpdateCenterUseCase(branchRepo);
+
+        var request = new UpdateBranchRequestDto { Name = "Center", Code = "C01", Email = invalidEmail };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            useCase.ExecuteAsync(centerId, request, Guid.NewGuid(), isSystemAdmin: true, userOrganizationId: null));
+        Assert.Contains("فرمت ایمیل مرکز نامعتبر است.", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task UpdateCenterUseCase_WithNullOrWhitespaceEmail_PersistsNullEmail(string? emailInput)
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var centerId = Guid.NewGuid();
+        var branch = new Branch
+        {
+            Id = centerId,
+            OrganizationId = Guid.NewGuid(),
+            Name = "Center",
+            Code = "C01",
+            Email = "previous@center.com"
+        };
+        db.Branches.Add(branch);
+        await db.SaveChangesAsync();
+
+        var branchRepo = new BranchRepository(db);
+        var useCase = new UpdateCenterUseCase(branchRepo);
+
+        var request = new UpdateBranchRequestDto { Name = "Center", Code = "C01", Email = emailInput };
+
+        // Act
+        var result = await useCase.ExecuteAsync(centerId, request, Guid.NewGuid(), isSystemAdmin: true, userOrganizationId: null);
+
+        // Assert
+        Assert.Null(result.Email);
+        var dbBranch = await db.Branches.FindAsync(centerId);
+        Assert.NotNull(dbBranch);
+        Assert.Null(dbBranch.Email);
     }
 
     [Fact]

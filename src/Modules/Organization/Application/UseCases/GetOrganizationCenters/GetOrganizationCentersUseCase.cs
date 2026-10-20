@@ -51,6 +51,7 @@ public class GetOrganizationCentersUseCase : IGetOrganizationCentersUseCase
             Code = b.Code,
             Address = b.Address,
             Phone = b.Phone,
+            Email = b.Email,
             IsActive = b.IsActive
         });
     }
