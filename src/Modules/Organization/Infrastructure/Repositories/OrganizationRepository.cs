@@ -160,7 +160,7 @@ public class OrganizationRepository : IOrganizationRepository
                 Id = x.Id,
                 Name = x.Name,
                 Code = x.Code,
-                Type = x.Type,
+                Type = x.OrganizationType,
                 IsActive = x.IsActive,
                 IsAwaitingCompletion = string.IsNullOrEmpty(x.NationalIdentifier) ||
                                        string.IsNullOrEmpty(x.Phone) ||
