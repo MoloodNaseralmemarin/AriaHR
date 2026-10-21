@@ -23,9 +23,21 @@ public class GetOrganizationsUseCase : IGetOrganizationsUseCase
             Code = org.Code,
             OrganizationType = org.OrganizationType,
             ManagerFullName = GetManagerFullName(org.ManagerFirstName, org.ManagerLastName),
+            ManagerMobile = NormalizePhoneNumber(org.ManagerMobile),
+            CenterPhone = NormalizePhoneNumber(org.Phone),
             IsActive = org.IsActive,
             CreatedAtUtc = org.CreatedAtUtc
         });
+    }
+
+    private static string? NormalizePhoneNumber(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return null;
+        }
+
+        return phone.Trim();
     }
 
     private static string? GetManagerFullName(string? firstName, string? lastName)
