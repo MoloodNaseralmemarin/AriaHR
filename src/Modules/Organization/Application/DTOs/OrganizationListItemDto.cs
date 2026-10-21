@@ -7,7 +7,7 @@ public class OrganizationListItemDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
-    public OrganizationType OrganizationType { get; set; }
+    public string OrganizationType { get; set; } = string.Empty;
     public string? ManagerFullName { get; set; }
     public string? ManagerMobile { get; set; }
     public string? CenterPhone { get; set; }

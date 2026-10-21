@@ -21,7 +21,7 @@ public class GetOrganizationsUseCase : IGetOrganizationsUseCase
             Id = org.Id,
             Name = org.Name,
             Code = org.Code,
-            OrganizationType = org.OrganizationType,
+            OrganizationType = org.OrganizationType.ToString(),
             ManagerFullName = GetManagerFullName(org.ManagerFirstName, org.ManagerLastName),
             ManagerMobile = NormalizePhoneNumber(org.ManagerMobile),
             CenterPhone = NormalizePhoneNumber(org.Phone),

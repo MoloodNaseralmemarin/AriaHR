@@ -115,8 +115,8 @@ public class OrganizationListAndCenterManagementTests
 
         // Assert
         Assert.Equal(2, result.Count);
-        Assert.Contains(result, o => o.Id == org1.Id && o.Name == "Clinic Alpha" && o.OrganizationType == OrganizationType.Clinic && o.ManagerFullName == "Ali Rezai" && o.ManagerMobile == "09123456789" && o.CenterPhone == "02188888888" && o.IsActive);
-        Assert.Contains(result, o => o.Id == org2.Id && o.Name == "Lab Beta" && o.OrganizationType == OrganizationType.Laboratory && o.ManagerFullName == null && o.ManagerMobile == null && o.CenterPhone == null && !o.IsActive);
+        Assert.Contains(result, o => o.Id == org1.Id && o.Name == "Clinic Alpha" && o.OrganizationType == "Clinic" && o.ManagerFullName == "Ali Rezai" && o.ManagerMobile == "09123456789" && o.CenterPhone == "02188888888" && o.IsActive);
+        Assert.Contains(result, o => o.Id == org2.Id && o.Name == "Lab Beta" && o.OrganizationType == "Laboratory" && o.ManagerFullName == null && o.ManagerMobile == null && o.CenterPhone == null && !o.IsActive);
         Assert.DoesNotContain(result, o => o.Id == deletedOrg.Id);
     }
 
@@ -242,7 +242,7 @@ public class OrganizationListAndCenterManagementTests
         Assert.Equal("Ali Rezai", dtoFull.ManagerFullName);
         Assert.Equal("Full Manager Org", dtoFull.Name);
         Assert.Equal("FM01", dtoFull.Code);
-        Assert.Equal(OrganizationType.Clinic, dtoFull.OrganizationType);
+        Assert.Equal("Clinic", dtoFull.OrganizationType);
 
         var dtoFirstName = result.Single(x => x.Id == firstNameOnlyOrg.Id);
         Assert.Equal("Mohammad", dtoFirstName.ManagerFullName);
@@ -328,9 +328,42 @@ public class OrganizationListAndCenterManagementTests
         var json = System.Text.Json.JsonSerializer.Serialize(result, options);
 
         // Assert
+        Assert.Contains("\"organizationType\":\"Clinic\"", json);
         Assert.Contains("\"managerFullName\":\"Javad Kari\"", json);
         Assert.Contains("\"managerMobile\":\"09129998877\"", json);
         Assert.Contains("\"centerPhone\":\"02177776655\"", json);
+    }
+
+    [Fact]
+    public async Task GetOrganizationsUseCase_ReturnsOrganizationTypeAsStringName()
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var orgs = new[]
+        {
+            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Clinic", Code = "C1", OrganizationType = OrganizationType.Clinic, IsActive = true },
+            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Imaging", Code = "I1", OrganizationType = OrganizationType.ImagingCenter, IsActive = true },
+            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Office", Code = "O1", OrganizationType = OrganizationType.MedicalOffice, IsActive = true },
+            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Lab", Code = "L1", OrganizationType = OrganizationType.Laboratory, IsActive = true },
+            new Domain.Entities.Organization { Id = Guid.NewGuid(), Name = "Pharmacy", Code = "P1", OrganizationType = OrganizationType.Pharmacy, IsActive = true }
+        };
+
+        db.Organizations.AddRange(orgs);
+        await db.SaveChangesAsync();
+
+        var repo = new OrganizationRepository(db);
+        var useCase = new GetOrganizationsUseCase(repo);
+
+        // Act
+        var result = (await useCase.ExecuteAsync()).ToList();
+
+        // Assert
+        Assert.Equal(5, result.Count);
+        Assert.Equal("Clinic", result.Single(x => x.Code == "C1").OrganizationType);
+        Assert.Equal("ImagingCenter", result.Single(x => x.Code == "I1").OrganizationType);
+        Assert.Equal("MedicalOffice", result.Single(x => x.Code == "O1").OrganizationType);
+        Assert.Equal("Laboratory", result.Single(x => x.Code == "L1").OrganizationType);
+        Assert.Equal("Pharmacy", result.Single(x => x.Code == "P1").OrganizationType);
     }
 
     #endregion
