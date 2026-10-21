@@ -8,6 +8,7 @@ public class OrganizationListItemDto
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public OrganizationType OrganizationType { get; set; }
+    public string? ManagerFullName { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

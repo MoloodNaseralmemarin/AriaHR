@@ -77,6 +77,8 @@ public class OrganizationListAndCenterManagementTests
             Name = "Clinic Alpha",
             Code = "ORG001",
             OrganizationType = OrganizationType.Clinic,
+            ManagerFirstName = "Ali",
+            ManagerLastName = "Rezai",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -111,9 +113,82 @@ public class OrganizationListAndCenterManagementTests
 
         // Assert
         Assert.Equal(2, result.Count);
-        Assert.Contains(result, o => o.Id == org1.Id && o.Name == "Clinic Alpha" && o.OrganizationType == OrganizationType.Clinic && o.IsActive);
-        Assert.Contains(result, o => o.Id == org2.Id && o.Name == "Lab Beta" && o.OrganizationType == OrganizationType.Laboratory && !o.IsActive);
+        Assert.Contains(result, o => o.Id == org1.Id && o.Name == "Clinic Alpha" && o.OrganizationType == OrganizationType.Clinic && o.ManagerFullName == "Ali Rezai" && o.IsActive);
+        Assert.Contains(result, o => o.Id == org2.Id && o.Name == "Lab Beta" && o.OrganizationType == OrganizationType.Laboratory && o.ManagerFullName == null && !o.IsActive);
         Assert.DoesNotContain(result, o => o.Id == deletedOrg.Id);
+    }
+
+    [Fact]
+    public async Task GetOrganizationsUseCase_MapsManagerFullNameCorrectly()
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var fullManagerOrg = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "Full Manager Org",
+            Code = "FM01",
+            OrganizationType = OrganizationType.Clinic,
+            ManagerFirstName = "  Ali  ",
+            ManagerLastName = "  Rezai  ",
+            IsActive = true
+        };
+        var firstNameOnlyOrg = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "FirstName Only Org",
+            Code = "FO01",
+            OrganizationType = OrganizationType.MedicalOffice,
+            ManagerFirstName = "  Mohammad  ",
+            ManagerLastName = "   ",
+            IsActive = true
+        };
+        var lastNameOnlyOrg = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "LastName Only Org",
+            Code = "LO01",
+            OrganizationType = OrganizationType.Pharmacy,
+            ManagerFirstName = null,
+            ManagerLastName = "  Ahmadi  ",
+            IsActive = true
+        };
+        var noManagerOrg = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "No Manager Org",
+            Code = "NM01",
+            OrganizationType = OrganizationType.Laboratory,
+            ManagerFirstName = "  ",
+            ManagerLastName = null,
+            IsActive = true
+        };
+
+        db.Organizations.AddRange(fullManagerOrg, firstNameOnlyOrg, lastNameOnlyOrg, noManagerOrg);
+        await db.SaveChangesAsync();
+
+        var repo = new OrganizationRepository(db);
+        var useCase = new GetOrganizationsUseCase(repo);
+
+        // Act
+        var result = (await useCase.ExecuteAsync()).ToList();
+
+        // Assert
+        Assert.Equal(4, result.Count);
+        var dtoFull = result.Single(x => x.Id == fullManagerOrg.Id);
+        Assert.Equal("Ali Rezai", dtoFull.ManagerFullName);
+        Assert.Equal("Full Manager Org", dtoFull.Name);
+        Assert.Equal("FM01", dtoFull.Code);
+        Assert.Equal(OrganizationType.Clinic, dtoFull.OrganizationType);
+
+        var dtoFirstName = result.Single(x => x.Id == firstNameOnlyOrg.Id);
+        Assert.Equal("Mohammad", dtoFirstName.ManagerFullName);
+
+        var dtoLastName = result.Single(x => x.Id == lastNameOnlyOrg.Id);
+        Assert.Equal("Ahmadi", dtoLastName.ManagerFullName);
+
+        var dtoNoManager = result.Single(x => x.Id == noManagerOrg.Id);
+        Assert.Null(dtoNoManager.ManagerFullName);
     }
 
     [Fact]
