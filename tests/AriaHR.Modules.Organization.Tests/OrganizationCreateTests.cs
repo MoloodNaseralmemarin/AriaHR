@@ -427,4 +427,45 @@ public class OrganizationCreateTests
         Assert.NotNull(authorizeAttr);
         Assert.Equal("SystemAdmin", authorizeAttr.Roles);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenCenterManagerRoleIsMissing_ThrowsInvalidOperationExceptionAndNotNullReferenceException()
+    {
+        // Arrange
+        string dbName = Guid.NewGuid().ToString();
+        var orgOptions = new DbContextOptionsBuilder<OrganizationDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .Options;
+        var identityOptions = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .Options;
+
+        var orgDb = new OrganizationDbContext(orgOptions);
+        var identityDb = new IdentityDbContext(identityOptions);
+
+        // Do NOT seed CenterManager role
+        identityDb.Roles.Add(new Role { Id = Guid.NewGuid(), Name = "SystemAdmin", Description = "System Administrator" });
+        identityDb.SaveChanges();
+
+        var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
+        var useCase = new CreateOrganizationUseCase(managerIdentityService);
+
+        var request = new CreateOrganizationRequest
+        {
+            Name = "No Role Center",
+            Code = "NOROLE-01",
+            Type = OrganizationType.Clinic,
+            ManagerFirstName = "Ali",
+            ManagerLastName = "Ahmadi",
+            ManagerMobile = "09123456789"
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
+        Assert.Contains("Role 'CenterManager' does not exist in the database.", ex.Message);
+
+        // Verify that no organization or user was created
+        Assert.Empty(orgDb.Organizations);
+        Assert.Empty(identityDb.Users);
+    }
 }
