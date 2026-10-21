@@ -79,6 +79,8 @@ public class OrganizationListAndCenterManagementTests
             OrganizationType = OrganizationType.Clinic,
             ManagerFirstName = "Ali",
             ManagerLastName = "Rezai",
+            ManagerMobile = "09123456789",
+            Phone = "02188888888",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -113,9 +115,70 @@ public class OrganizationListAndCenterManagementTests
 
         // Assert
         Assert.Equal(2, result.Count);
-        Assert.Contains(result, o => o.Id == org1.Id && o.Name == "Clinic Alpha" && o.OrganizationType == OrganizationType.Clinic && o.ManagerFullName == "Ali Rezai" && o.IsActive);
-        Assert.Contains(result, o => o.Id == org2.Id && o.Name == "Lab Beta" && o.OrganizationType == OrganizationType.Laboratory && o.ManagerFullName == null && !o.IsActive);
+        Assert.Contains(result, o => o.Id == org1.Id && o.Name == "Clinic Alpha" && o.OrganizationType == OrganizationType.Clinic && o.ManagerFullName == "Ali Rezai" && o.ManagerMobile == "09123456789" && o.CenterPhone == "02188888888" && o.IsActive);
+        Assert.Contains(result, o => o.Id == org2.Id && o.Name == "Lab Beta" && o.OrganizationType == OrganizationType.Laboratory && o.ManagerFullName == null && o.ManagerMobile == null && o.CenterPhone == null && !o.IsActive);
         Assert.DoesNotContain(result, o => o.Id == deletedOrg.Id);
+    }
+
+    [Fact]
+    public async Task GetOrganizationsUseCase_MapsManagerMobileAndCenterPhoneCorrectly()
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var validPhonesOrg = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "Valid Phones Org",
+            Code = "VP01",
+            OrganizationType = OrganizationType.Clinic,
+            ManagerMobile = "  09121112233  ",
+            Phone = "  +982188776655  ",
+            IsActive = true
+        };
+        var emptyWhitespaceOrg = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "Whitespace Phones Org",
+            Code = "WP01",
+            OrganizationType = OrganizationType.Laboratory,
+            ManagerMobile = "   ",
+            Phone = "",
+            IsActive = true
+        };
+        var nullPhonesOrg = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "Null Phones Org",
+            Code = "NP01",
+            OrganizationType = OrganizationType.Pharmacy,
+            ManagerMobile = null,
+            Phone = null,
+            IsActive = true
+        };
+
+        db.Organizations.AddRange(validPhonesOrg, emptyWhitespaceOrg, nullPhonesOrg);
+        await db.SaveChangesAsync();
+
+        var repo = new OrganizationRepository(db);
+        var useCase = new GetOrganizationsUseCase(repo);
+
+        // Act
+        var result = (await useCase.ExecuteAsync()).ToList();
+
+        // Assert
+        Assert.Equal(3, result.Count);
+
+        var dtoValid = result.Single(x => x.Id == validPhonesOrg.Id);
+        Assert.Equal("09121112233", dtoValid.ManagerMobile);
+        Assert.Equal("+982188776655", dtoValid.CenterPhone);
+
+        var dtoWhitespace = result.Single(x => x.Id == emptyWhitespaceOrg.Id);
+        Assert.Null(dtoWhitespace.ManagerMobile);
+        Assert.Null(dtoWhitespace.CenterPhone);
+
+        var dtoNull = result.Single(x => x.Id == nullPhonesOrg.Id);
+        Assert.Null(dtoNull.ManagerMobile);
+        Assert.Null(dtoNull.CenterPhone);
     }
 
     [Fact]
@@ -229,6 +292,45 @@ public class OrganizationListAndCenterManagementTests
         var okResult = Assert.IsType<OkObjectResult>(actionResult);
         var items = Assert.IsAssignableFrom<IEnumerable<OrganizationListItemDto>>(okResult.Value);
         Assert.Empty(items);
+    }
+
+    [Fact]
+    public async Task OrganizationsController_GetOrganizations_SerializesManagerMobileAndCenterPhoneInJson()
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var org = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Center",
+            Code = "TC01",
+            OrganizationType = OrganizationType.Clinic,
+            ManagerFirstName = "Javad",
+            ManagerLastName = "Kari",
+            ManagerMobile = "09129998877",
+            Phone = "02177776655",
+            IsActive = true
+        };
+        db.Organizations.Add(org);
+        await db.SaveChangesAsync();
+
+        var repo = new OrganizationRepository(db);
+        var getOrgsUseCase = new GetOrganizationsUseCase(repo);
+
+        // Act
+        var result = await getOrgsUseCase.ExecuteAsync();
+
+        // Serialize DTO to JSON using System.Text.Json with camelCase
+        var options = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(result, options);
+
+        // Assert
+        Assert.Contains("\"managerFullName\":\"Javad Kari\"", json);
+        Assert.Contains("\"managerMobile\":\"09129998877\"", json);
+        Assert.Contains("\"centerPhone\":\"02177776655\"", json);
     }
 
     #endregion
