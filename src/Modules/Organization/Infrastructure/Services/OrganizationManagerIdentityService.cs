@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using AriaHR.Modules.Identity.Application.Common;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Persistence;
@@ -69,6 +70,17 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
             throw new ArgumentException("شماره موبایل مدیر نامعتبر است.", nameof(request.ManagerMobile));
         }
 
+        if (string.IsNullOrWhiteSpace(request.ManagerEmail))
+        {
+            throw new ArgumentException("ایمیل مدیر مرکز الزامی است.", nameof(request.ManagerEmail));
+        }
+
+        string? normalizedEmail = EmailNormalizer.Normalize(request.ManagerEmail);
+        if (normalizedEmail == null || !new EmailAddressAttribute().IsValid(normalizedEmail))
+        {
+            throw new ArgumentException("فرمت ایمیل مدیر مرکز نامعتبر است.", nameof(request.ManagerEmail));
+        }
+
         // 1. Resolve CenterManager role early before beginning transactions or modifying persistent data
         var centerManagerRole = await _identityDbContext.Roles
             .FirstOrDefaultAsync(r => r.Name == "CenterManager", cancellationToken);
@@ -76,6 +88,30 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
         if (centerManagerRole == null)
         {
             throw new InvalidOperationException("Role 'CenterManager' does not exist in the database.");
+        }
+
+        // 2. Find existing user with manager mobile
+        var existingUser = await _identityDbContext.Users
+            .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
+
+        var orgId = Guid.NewGuid();
+
+        if (existingUser != null && existingUser.OrganizationId.HasValue && existingUser.OrganizationId.Value != orgId)
+        {
+            throw new ArgumentException("کاربری با این شماره موبایل قبلاً به سازمان دیگری اختصاص یافته است.", nameof(request.ManagerMobile));
+        }
+
+        // 3. Duplicate email check across non-deleted users, excluding matched existing user
+        string lowerEmail = normalizedEmail.ToLowerInvariant();
+        var isDuplicateEmail = await _identityDbContext.Users
+            .AnyAsync(u => !u.IsDeleted &&
+                           u.Email != null &&
+                           u.Email.ToLower() == lowerEmail &&
+                           (existingUser == null || u.Id != existingUser.Id), cancellationToken);
+
+        if (isDuplicateEmail)
+        {
+            throw new ArgumentException("این ایمیل قبلاً برای کاربر دیگری ثبت شده است.", nameof(request.ManagerEmail));
         }
 
         bool isRelational = _organizationDbContext.Database.IsRelational() && _identityDbContext.Database.IsRelational();
@@ -93,18 +129,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
 
         try
         {
-            // 2. Find existing user with manager mobile and validate Case C before creating Organization
-            var existingUser = await _identityDbContext.Users
-                .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
-
-            var orgId = Guid.NewGuid();
-
-            if (existingUser != null && existingUser.OrganizationId.HasValue && existingUser.OrganizationId.Value != orgId)
-            {
-                throw new ArgumentException("کاربری با این شماره موبایل قبلاً به سازمان دیگری اختصاص یافته است.", nameof(request.ManagerMobile));
-            }
-
-            // 3. Create Organization
+            // 4. Create Organization
             var organization = new Domain.Entities.Organization
             {
                 Id = orgId,
@@ -129,7 +154,6 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
 
             if (existingUser != null)
             {
-
                 // Case A & B: User has no organization or belongs to this organization
                 if (!existingUser.OrganizationId.HasValue)
                 {
@@ -146,6 +170,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     existingUser.LastName = request.ManagerLastName.Trim();
                 }
 
+                existingUser.Email = normalizedEmail;
                 existingUser.IsActive = true;
 
                 // Ensure CenterManager role is assigned
@@ -175,6 +200,7 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                     FirstName = request.ManagerFirstName.Trim(),
                     LastName = request.ManagerLastName.Trim(),
                     PhoneNumber = normalizedMobile,
+                    Email = normalizedEmail,
                     OrganizationId = organization.Id,
                     IsActive = true,
                     CreatedAtUtc = now,
@@ -230,6 +256,12 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 ex.Message.Contains("IX_Users_PhoneNumber"))
             {
                 throw new ArgumentException("کاربری با این شماره موبایل قبلاً ثبت شده است.", nameof(request.ManagerMobile), ex);
+            }
+
+            if (ex.InnerException?.Message.Contains("IX_Users_Email") == true ||
+                ex.Message.Contains("IX_Users_Email"))
+            {
+                throw new ArgumentException("این ایمیل قبلاً برای کاربر دیگری ثبت شده است.", nameof(request.ManagerEmail), ex);
             }
 
             throw;

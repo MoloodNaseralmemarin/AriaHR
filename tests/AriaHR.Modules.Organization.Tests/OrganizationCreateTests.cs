@@ -74,6 +74,7 @@ public class OrganizationCreateTests
             ManagerFirstName = "Ali",
             ManagerLastName = "Ahmadi",
             ManagerMobile = "09123456789",
+            ManagerEmail = "ali.ahmadi@clinic.com",
             IsActive = true
         };
 
@@ -103,8 +104,8 @@ public class OrganizationCreateTests
         Assert.Equal("Ali", dbUser.FirstName);
         Assert.Equal("Ahmadi", dbUser.LastName);
         Assert.Equal("09123456789", dbUser.PhoneNumber);
+        Assert.Equal("ali.ahmadi@clinic.com", dbUser.Email);
         Assert.Equal(result.Id, dbUser.OrganizationId);
-        Assert.Null(dbUser.Email);
         Assert.True(dbUser.IsActive);
 
         // Verify UserRole persistence and CenterManager role assignment
@@ -115,12 +116,15 @@ public class OrganizationCreateTests
         Assert.NotNull(dbUserRole);
         Assert.Equal(centerManagerRole.Id, dbUserRole.RoleId);
         Assert.NotEqual(systemAdminRole.Id, dbUserRole.RoleId);
+
+        // Verify no Branch record is required or created
+        Assert.Empty(orgDb.Branches);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithExistingUserNoOrganization_AttachesUserToOrganization()
+    public async Task ExecuteAsync_WithExistingUserNoOrganization_AttachesUserToOrganizationAndUpdatesEmail()
     {
-        // Arrange (Test 2: Existing User Without Organization)
+        // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
 
         var existingUser = new User
@@ -129,6 +133,7 @@ public class OrganizationCreateTests
             FirstName = "Unassigned",
             LastName = "User",
             PhoneNumber = "09123456789",
+            Email = "old.email@clinic.com",
             OrganizationId = null,
             IsActive = true
         };
@@ -145,7 +150,8 @@ public class OrganizationCreateTests
             Type = OrganizationType.Clinic,
             ManagerFirstName = "UpdatedFirstName",
             ManagerLastName = "UpdatedLastName",
-            ManagerMobile = "09123456789"
+            ManagerMobile = "09123456789",
+            ManagerEmail = "new.email@clinic.com"
         };
 
         // Act
@@ -158,12 +164,92 @@ public class OrganizationCreateTests
         Assert.Equal(result.Id, dbUser.OrganizationId);
         Assert.Equal("UpdatedFirstName", dbUser.FirstName);
         Assert.Equal("UpdatedLastName", dbUser.LastName);
+        Assert.Equal("new.email@clinic.com", dbUser.Email);
 
         var centerManagerRole = await identityDb.Roles.FirstAsync(r => r.Name == "CenterManager");
         var userRole = await identityDb.UserRoles.FirstOrDefaultAsync(ur => ur.UserId == dbUser.Id && ur.RoleId == centerManagerRole.Id);
         Assert.NotNull(userRole);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithExistingUserMatchingSameEmail_SucceedsWithoutDuplicateError()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+
+        var existingUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Ali",
+            LastName = "Ahmadi",
+            PhoneNumber = "09123456789",
+            Email = "ali.ahmadi@clinic.com",
+            OrganizationId = null,
+            IsActive = true
+        };
+        identityDb.Users.Add(existingUser);
+        identityDb.SaveChanges();
+
+        var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
+        var useCase = new CreateOrganizationUseCase(managerIdentityService);
+
+        var request = new CreateOrganizationRequest
+        {
+            Name = "Aria Clinic",
+            Code = "AC-001",
+            Type = OrganizationType.Clinic,
+            ManagerFirstName = "Ali",
+            ManagerLastName = "Ahmadi",
+            ManagerMobile = "09123456789",
+            ManagerEmail = "ali.ahmadi@clinic.com"
+        };
+
+        // Act
+        var result = await useCase.ExecuteAsync(request, Guid.NewGuid());
+
+        // Assert
+        Assert.NotNull(result);
+        var dbUser = await identityDb.Users.FirstAsync(u => u.Id == existingUser.Id);
+        Assert.Equal("ali.ahmadi@clinic.com", dbUser.Email);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDuplicateEmailForAnotherUser_ThrowsArgumentException()
+    {
+        // Arrange
+        var (orgDb, identityDb) = GetInMemoryDbContexts();
+
+        var otherUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Other",
+            LastName = "Manager",
+            PhoneNumber = "09111111111",
+            Email = "existing.manager@clinic.com",
+            IsActive = true
+        };
+        identityDb.Users.Add(otherUser);
+        identityDb.SaveChanges();
+
+        var managerIdentityService = new OrganizationManagerIdentityService(orgDb, identityDb);
+        var useCase = new CreateOrganizationUseCase(managerIdentityService);
+
+        var request = new CreateOrganizationRequest
+        {
+            Name = "New Org",
+            Code = "NEW-01",
+            Type = OrganizationType.Clinic,
+            ManagerFirstName = "Ali",
+            ManagerLastName = "Ahmadi",
+            ManagerMobile = "09222222222",
+            ManagerEmail = "EXISTING.MANAGER@CLINIC.COM" // duplicate case-insensitive
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
+        Assert.Contains("این ایمیل قبلاً برای کاربر دیگری ثبت شده است.", ex.Message);
+        Assert.Empty(orgDb.Organizations);
+    }
 
     [Fact]
     public async Task ExecuteAsync_WithExistingUserOtherOrganization_ThrowsArgumentException()
@@ -178,6 +264,7 @@ public class OrganizationCreateTests
             FirstName = "OtherOrg",
             LastName = "Manager",
             PhoneNumber = "09123456789",
+            Email = "manager.orga@clinic.com",
             OrganizationId = orgAId,
             IsActive = true
         };
@@ -194,7 +281,8 @@ public class OrganizationCreateTests
             Type = OrganizationType.Clinic,
             ManagerFirstName = "Ali",
             ManagerLastName = "Ahmadi",
-            ManagerMobile = "09123456789"
+            ManagerMobile = "09123456789",
+            ManagerEmail = "manager.orgb@clinic.com"
         };
 
         // Act & Assert
@@ -206,15 +294,17 @@ public class OrganizationCreateTests
         Assert.Equal(orgAId, dbUser.OrganizationId);
     }
 
-
     [Theory]
-    [InlineData("", "CODE", "Ali", "Ahmadi", "09123456789", "نام سازمان الزامی است.")]
-    [InlineData("Name", "", "Ali", "Ahmadi", "09123456789", "کد سازمان الزامی است.")]
-    [InlineData("Name", "CODE", "", "Ahmadi", "09123456789", "نام مدیر الزامی است.")]
-    [InlineData("Name", "CODE", "Ali", "", "09123456789", "نام خانوادگی مدیر الزامی است.")]
-    [InlineData("Name", "CODE", "Ali", "Ahmadi", "", "شماره موبایل مدیر الزامی است.")]
-    public async Task ExecuteAsync_WithMissingRequiredFields_ThrowsArgumentExceptionWithPersianMessage(
-        string name, string code, string managerFirstName, string managerLastName, string managerMobile, string expectedMessage)
+    [InlineData("", "CODE", "Ali", "Ahmadi", "09123456789", "ali@clinic.com", "نام سازمان الزامی است.")]
+    [InlineData("Name", "", "Ali", "Ahmadi", "09123456789", "ali@clinic.com", "کد سازمان الزامی است.")]
+    [InlineData("Name", "CODE", "", "Ahmadi", "09123456789", "ali@clinic.com", "نام مدیر الزامی است.")]
+    [InlineData("Name", "CODE", "Ali", "", "09123456789", "ali@clinic.com", "نام خانوادگی مدیر الزامی است.")]
+    [InlineData("Name", "CODE", "Ali", "Ahmadi", "", "ali@clinic.com", "شماره موبایل مدیر الزامی است.")]
+    [InlineData("Name", "CODE", "Ali", "Ahmadi", "09123456789", "", "ایمیل مدیر مرکز الزامی است.")]
+    [InlineData("Name", "CODE", "Ali", "Ahmadi", "09123456789", "   ", "ایمیل مدیر مرکز الزامی است.")]
+    [InlineData("Name", "CODE", "Ali", "Ahmadi", "09123456789", "not-an-email", "فرمت ایمیل مدیر مرکز نامعتبر است.")]
+    public async Task ExecuteAsync_WithMissingOrInvalidFields_ThrowsArgumentExceptionWithPersianMessage(
+        string name, string code, string managerFirstName, string managerLastName, string managerMobile, string managerEmail, string expectedMessage)
     {
         // Arrange
         var (orgDb, identityDb) = GetInMemoryDbContexts();
@@ -228,14 +318,14 @@ public class OrganizationCreateTests
             Type = OrganizationType.Clinic,
             ManagerFirstName = managerFirstName,
             ManagerLastName = managerLastName,
-            ManagerMobile = managerMobile
+            ManagerMobile = managerMobile,
+            ManagerEmail = managerEmail
         };
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, Guid.NewGuid()));
         Assert.Contains(expectedMessage, ex.Message);
         Assert.Empty(orgDb.Organizations);
-        Assert.Empty(identityDb.Users);
     }
 
     [Fact]
@@ -273,7 +363,8 @@ public class OrganizationCreateTests
             Type = OrganizationType.ImagingCenter,
             ManagerFirstName = "Ali",
             ManagerLastName = "Ahmadi",
-            ManagerMobile = "09123456789"
+            ManagerMobile = "09123456789",
+            ManagerEmail = "ali.ahmadi@clinic.com"
         };
 
         // Act
@@ -287,6 +378,9 @@ public class OrganizationCreateTests
         Assert.Equal("SystemAdmin Org", dto.Name);
         Assert.Equal(OrganizationType.ImagingCenter, dto.OrganizationType);
         Assert.Equal(expectedUserId, dto.CreatedByUserId);
+
+        var dbUser = await identityDb.Users.FirstAsync(u => u.PhoneNumber == "09123456789");
+        Assert.Equal("ali.ahmadi@clinic.com", dbUser.Email);
     }
 
     [Fact]
@@ -301,6 +395,7 @@ public class OrganizationCreateTests
             FirstName = "Existing",
             LastName = "User",
             PhoneNumber = "09123456789",
+            Email = "existing@clinic.com",
             OrganizationId = Guid.NewGuid()
         });
         identityDb.SaveChanges();
@@ -332,7 +427,8 @@ public class OrganizationCreateTests
             Type = OrganizationType.Laboratory,
             ManagerFirstName = "Ali",
             ManagerLastName = "Ahmadi",
-            ManagerMobile = "09123456789"
+            ManagerMobile = "09123456789",
+            ManagerEmail = "ali.ahmadi@clinic.com"
         };
 
         // Act
@@ -405,7 +501,8 @@ public class OrganizationCreateTests
             Type = OrganizationType.Clinic,
             ManagerFirstName = "Ali",
             ManagerLastName = "Ahmadi",
-            ManagerMobile = "09123456789"
+            ManagerMobile = "09123456789",
+            ManagerEmail = "ali@clinic.com"
         };
 
         // Act
@@ -457,7 +554,8 @@ public class OrganizationCreateTests
             Type = OrganizationType.Clinic,
             ManagerFirstName = "Ali",
             ManagerLastName = "Ahmadi",
-            ManagerMobile = "09123456789"
+            ManagerMobile = "09123456789",
+            ManagerEmail = "ali@clinic.com"
         };
 
         // Act & Assert
