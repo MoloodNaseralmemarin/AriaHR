@@ -192,6 +192,59 @@ public class OrganizationListAndCenterManagementTests
     }
 
     [Fact]
+    public async Task GetOrganizationsUseCase_MapsManagerMobileAndCenterPhoneCorrectly()
+    {
+        // Arrange
+        var db = GetInMemoryDbContext();
+        var orgWithPhoneNumbers = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "Phone Test Org",
+            Code = "PT01",
+            OrganizationType = OrganizationType.Clinic,
+            ManagerFirstName = "Saeed",
+            ManagerLastName = "Khosravi",
+            ManagerMobile = "09123456789",
+            Phone = "02188888888",
+            IsActive = true
+        };
+        var orgWithoutPhoneNumbers = new Domain.Entities.Organization
+        {
+            Id = Guid.NewGuid(),
+            Name = "No Phone Org",
+            Code = "NP01",
+            OrganizationType = OrganizationType.Pharmacy,
+            ManagerFirstName = "Sara",
+            ManagerLastName = "Ahmadi",
+            ManagerMobile = null,
+            Phone = null,
+            IsActive = true
+        };
+
+        db.Organizations.AddRange(orgWithPhoneNumbers, orgWithoutPhoneNumbers);
+        await db.SaveChangesAsync();
+
+        var repo = new OrganizationRepository(db);
+        var useCase = new GetOrganizationsUseCase(repo);
+
+        // Act
+        var result = (await useCase.ExecuteAsync()).ToList();
+
+        // Assert
+        Assert.Equal(2, result.Count);
+
+        var dtoWithNumbers = result.Single(x => x.Id == orgWithPhoneNumbers.Id);
+        Assert.Equal("Saeed Khosravi", dtoWithNumbers.ManagerFullName);
+        Assert.Equal("09123456789", dtoWithNumbers.ManagerMobile);
+        Assert.Equal("02188888888", dtoWithNumbers.CenterPhone);
+
+        var dtoWithoutNumbers = result.Single(x => x.Id == orgWithoutPhoneNumbers.Id);
+        Assert.Equal("Sara Ahmadi", dtoWithoutNumbers.ManagerFullName);
+        Assert.Null(dtoWithoutNumbers.ManagerMobile);
+        Assert.Null(dtoWithoutNumbers.CenterPhone);
+    }
+
+    [Fact]
     public async Task OrganizationsController_GetOrganizations_ReturnsOkWithList()
     {
         // Arrange

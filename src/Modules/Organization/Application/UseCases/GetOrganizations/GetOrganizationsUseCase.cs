@@ -23,6 +23,8 @@ public class GetOrganizationsUseCase : IGetOrganizationsUseCase
             Code = org.Code,
             OrganizationType = org.OrganizationType,
             ManagerFullName = GetManagerFullName(org.ManagerFirstName, org.ManagerLastName),
+            ManagerMobile = org.ManagerMobile,
+            CenterPhone = org.Phone,
             IsActive = org.IsActive,
             CreatedAtUtc = org.CreatedAtUtc
         });
