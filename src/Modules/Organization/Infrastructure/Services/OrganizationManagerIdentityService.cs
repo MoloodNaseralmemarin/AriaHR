@@ -69,6 +69,15 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
             throw new ArgumentException("شماره موبایل مدیر نامعتبر است.", nameof(request.ManagerMobile));
         }
 
+        // 1. Resolve CenterManager role early before beginning transactions or modifying persistent data
+        var centerManagerRole = await _identityDbContext.Roles
+            .FirstOrDefaultAsync(r => r.Name == "CenterManager", cancellationToken);
+
+        if (centerManagerRole == null)
+        {
+            throw new InvalidOperationException("Role 'CenterManager' does not exist in the database.");
+        }
+
         bool isRelational = _organizationDbContext.Database.IsRelational() && _identityDbContext.Database.IsRelational();
 
         IDbContextTransaction? transaction = null;
@@ -84,15 +93,6 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
 
         try
         {
-            // 1. Resolve CenterManager role
-            var centerManagerRole = await _identityDbContext.Roles
-                .FirstOrDefaultAsync(r => r.Name == "CenterManager", cancellationToken);
-
-            if (centerManagerRole == null)
-            {
-                throw new InvalidOperationException("Role 'CenterManager' does not exist in the database.");
-            }
-
             // 2. Find existing user with manager mobile and validate Case C before creating Organization
             var existingUser = await _identityDbContext.Users
                 .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedMobile, cancellationToken);
@@ -213,7 +213,8 @@ public class OrganizationManagerIdentityService : IOrganizationManagerIdentitySe
                 Address = organization.Address,
                 ManagerFirstName = organization.ManagerFirstName,
                 ManagerLastName = organization.ManagerLastName,
-                ManagerMobile = organization.ManagerMobile,                IsActive = organization.IsActive,
+                ManagerMobile = organization.ManagerMobile,
+                IsActive = organization.IsActive,
                 CreatedAtUtc = organization.CreatedAtUtc,
                 CreatedByUserId = organization.CreatedByUserId
             };
