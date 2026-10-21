@@ -22,8 +22,19 @@ public class GetOrganizationsUseCase : IGetOrganizationsUseCase
             Name = org.Name,
             Code = org.Code,
             OrganizationType = org.OrganizationType,
+            ManagerFullName = GetManagerFullName(org.ManagerFirstName, org.ManagerLastName),
             IsActive = org.IsActive,
             CreatedAtUtc = org.CreatedAtUtc
         });
+    }
+
+    private static string? GetManagerFullName(string? firstName, string? lastName)
+    {
+        var trimmedFirstName = firstName?.Trim();
+        var trimmedLastName = lastName?.Trim();
+
+        var fullName = $"{trimmedFirstName} {trimmedLastName}".Trim();
+
+        return string.IsNullOrWhiteSpace(fullName) ? null : fullName;
     }
 }
