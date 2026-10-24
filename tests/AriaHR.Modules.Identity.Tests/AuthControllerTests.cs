@@ -374,6 +374,65 @@ public class AuthControllerTests
         Assert.Equal(user.Id, response.Id);
         Assert.Equal(orgId, response.OrganizationId);
         Assert.Contains("CenterManager", response.Roles);
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
+        Assert.Contains($"\"organizationId\":\"{orgId}\"", json);
+    }
+
+    [Fact]
+    public async Task GetCurrentUser_UserWithoutOrganization_Returns200OK_WithNullOrganizationIdInJson()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "System",
+            LastName = "Admin",
+            PhoneNumber = "09121112233",
+            Email = "admin@ariahr.com",
+            OrganizationId = null,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "SystemAdmin" };
+        var userRole = new UserRole { UserId = user.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(user);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, "System Admin")
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+        };
+
+        // Act
+        var actionResult = await controller.GetCurrentUser(CancellationToken.None);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsType<CurrentUserResponse>(okResult.Value);
+
+        Assert.Equal(user.Id, response.Id);
+        Assert.Null(response.OrganizationId);
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
+        Assert.Contains("\"organizationId\":null", json);
+        Assert.DoesNotContain("\"organizationId\":\"null\"", json);
     }
 
     [Fact]
