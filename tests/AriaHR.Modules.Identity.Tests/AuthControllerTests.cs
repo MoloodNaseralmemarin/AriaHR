@@ -29,6 +29,22 @@ public class TestHostEnvironment : IHostEnvironment
     public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
 }
 
+public class FakeOrganizationLookupService : AriaHR.Shared.Services.IOrganizationLookupService
+{
+    private readonly Dictionary<Guid, string> _organizations = new();
+
+    public void AddOrganization(Guid id, string name)
+    {
+        _organizations[id] = name;
+    }
+
+    public Task<string?> GetOrganizationNameByIdAsync(Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        _organizations.TryGetValue(organizationId, out var name);
+        return Task.FromResult(name);
+    }
+}
+
 public class AuthControllerTests
 {
     private readonly DbContextOptions<IdentityDbContext> _dbContextOptions;
@@ -60,7 +76,10 @@ public class AuthControllerTests
 
     private IdentityDbContext CreateDbContext() => new(_dbContextOptions);
 
-    private AuthController CreateController(IdentityDbContext dbContext, string environmentName = "Development")
+    private AuthController CreateController(
+        IdentityDbContext dbContext,
+        string environmentName = "Development",
+        AriaHR.Shared.Services.IOrganizationLookupService? organizationLookupService = null)
     {
         var userRepo = new UserRepository(dbContext);
         var roleRepo = new RoleRepository(dbContext);
@@ -72,7 +91,7 @@ public class AuthControllerTests
 
         var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationService, tokenService, _otpOptions);
         var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, _otpOptions);
-        var getCurrentUserUseCase = new GetCurrentUserUseCase(userRepo, userRoleRepo);
+        var getCurrentUserUseCase = new GetCurrentUserUseCase(userRepo, userRoleRepo, organizationLookupService);
         var logoutUseCase = new LogoutUseCase(refreshTokenRepo);
 
         var env = new TestHostEnvironment { EnvironmentName = environmentName };
@@ -325,11 +344,13 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task GetCurrentUser_CenterManagerWithOrganization_Returns200OK_WithOrganizationId()
+    public async Task GetCurrentUser_CenterManagerWithOrganization_Returns200OK_WithOrganizationIdAndName()
     {
         // Arrange
         using var dbContext = CreateDbContext();
         var orgId = Guid.NewGuid();
+        var expectedOrgName = "کلینیک نمونه";
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -349,7 +370,10 @@ public class AuthControllerTests
         await dbContext.UserRoles.AddAsync(userRole);
         await dbContext.SaveChangesAsync();
 
-        var controller = CreateController(dbContext);
+        var fakeOrgLookup = new FakeOrganizationLookupService();
+        fakeOrgLookup.AddOrganization(orgId, expectedOrgName);
+
+        var controller = CreateController(dbContext, organizationLookupService: fakeOrgLookup);
 
         var claims = new List<Claim>
         {
@@ -373,11 +397,17 @@ public class AuthControllerTests
 
         Assert.Equal(user.Id, response.Id);
         Assert.Equal(orgId, response.OrganizationId);
+        Assert.Equal(expectedOrgName, response.OrganizationName);
         Assert.Contains("CenterManager", response.Roles);
 
-        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
         var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
         Assert.Contains($"\"organizationId\":\"{orgId}\"", json);
+        Assert.Contains($"\"organizationName\":\"{expectedOrgName}\"", json);
     }
 
     [Fact]
@@ -428,10 +458,12 @@ public class AuthControllerTests
 
         Assert.Equal(user.Id, response.Id);
         Assert.Null(response.OrganizationId);
+        Assert.Null(response.OrganizationName);
 
         var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
         var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
         Assert.Contains("\"organizationId\":null", json);
+        Assert.Contains("\"organizationName\":null", json);
         Assert.DoesNotContain("\"organizationId\":\"null\"", json);
     }
 
