@@ -58,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationManagerIdentityService, OrganizationManagerIdentityService>();
         services.AddScoped<IEmployeeIdentityService, EmployeeIdentityService>();
         services.AddScoped<IEmployeeLookupService, EmployeeLookupService>();
+        services.AddScoped<IOrganizationLookupService, OrganizationLookupService>();
         services.AddScoped<ICreateOrganizationUseCase, CreateOrganizationUseCase>();
         services.AddScoped<ICreateEmployeeUseCase, CreateEmployeeUseCase>();
         services.AddScoped<IGetEmployeesUseCase, GetEmployeesUseCase>();
