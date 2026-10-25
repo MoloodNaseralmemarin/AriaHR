@@ -31,14 +31,16 @@ public class GetCurrentUserUseCase
         var roles = await _userRoleRepository.GetRolesByUserIdAsync(user.Id, cancellationToken);
         var roleNames = roles.Select(r => r.Name).ToList();
 
-        string? orgName = null;
+        string orgName = string.Empty;
         if (_organizationLookupService != null)
         {
-            orgName = await _organizationLookupService.GetOrganizationNameForUserAsync(
+            var resolvedName = await _organizationLookupService.GetOrganizationNameForUserAsync(
                 user.OrganizationId,
                 user.PhoneNumber,
                 user.Id,
                 cancellationToken);
+
+            orgName = resolvedName ?? string.Empty;
         }
 
         return new CurrentUserResponse(

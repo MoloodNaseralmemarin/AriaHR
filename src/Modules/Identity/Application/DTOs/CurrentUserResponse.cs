@@ -6,4 +6,4 @@ public record CurrentUserResponse(
     string LastName,
     string PhoneNumber,
     List<string> Roles,
-    string? OrganizationName = null);
+    string OrganizationName = "");

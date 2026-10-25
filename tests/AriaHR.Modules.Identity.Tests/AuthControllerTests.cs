@@ -434,7 +434,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task GetCurrentUser_UserWithoutOrganization_Returns200OK_WithNullOrganizationNameAndNoOrganizationIdInJson()
+    public async Task GetCurrentUser_UserWithoutOrganization_Returns200OK_WithEmptyStringOrganizationNameAndNoOrganizationIdInJson()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -480,12 +480,12 @@ public class AuthControllerTests
         var response = Assert.IsType<CurrentUserResponse>(okResult.Value);
 
         Assert.Equal(user.Id, response.Id);
-        Assert.Null(response.OrganizationName);
+        Assert.Equal(string.Empty, response.OrganizationName);
 
         var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
         var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
         Assert.DoesNotContain("organizationId", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"organizationName\":null", json);
+        Assert.Contains("\"organizationName\":\"\"", json);
     }
 
     [Fact]
