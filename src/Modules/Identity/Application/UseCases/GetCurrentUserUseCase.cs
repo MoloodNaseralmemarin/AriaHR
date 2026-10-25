@@ -43,7 +43,6 @@ public class GetCurrentUserUseCase
             user.LastName,
             user.PhoneNumber,
             roleNames,
-            user.OrganizationId,
             orgName);
     }
 }
