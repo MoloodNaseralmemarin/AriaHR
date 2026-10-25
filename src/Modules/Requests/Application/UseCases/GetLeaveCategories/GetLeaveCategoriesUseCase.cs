@@ -30,7 +30,8 @@ public class GetLeaveCategoriesUseCase : IGetLeaveCategoriesUseCase
         {
             Id = c.Id,
             OrganizationId = c.OrganizationId,
-            Name = c.Name
+            Name = c.Name,
+            IsActive = c.IsActive
         });
     }
 }
