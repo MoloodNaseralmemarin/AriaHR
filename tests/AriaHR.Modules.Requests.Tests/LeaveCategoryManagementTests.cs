@@ -1019,8 +1019,8 @@ public class LeaveCategoryManagementTests
         var properties = typeof(LeaveCategoryListItemDto).GetProperties();
         var propertyNames = properties.Select(p => p.Name).OrderBy(p => p).ToList();
 
-        Assert.Equal(3, properties.Length);
-        Assert.Equal(new[] { "Id", "Name", "OrganizationId" }, propertyNames);
+        Assert.Equal(4, properties.Length);
+        Assert.Equal(new[] { "Id", "IsActive", "Name", "OrganizationId" }, propertyNames);
     }
 
     [Fact]
@@ -1052,5 +1052,90 @@ public class LeaveCategoryManagementTests
         Assert.Equal(category.Id, item.Id);
         Assert.Equal(category.OrganizationId, item.OrganizationId);
         Assert.Equal(category.Name, item.Name);
+        Assert.True(item.IsActive);
+    }
+
+    [Fact]
+    public void LeaveCategoryListItemDto_SerializesToJsonWithIsActiveBooleanProperty()
+    {
+        var dto = new LeaveCategoryListItemDto
+        {
+            Id = Guid.Parse("123e4567-e89b-12d3-a456-426614174000"),
+            OrganizationId = Guid.Parse("123e4567-e89b-12d3-a456-426614174000"),
+            Name = "Annual Leave",
+            IsActive = true
+        };
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(dto, jsonOptions);
+
+        Assert.Contains("\"isActive\":true", json);
+
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(json);
+        var root = jsonDoc.RootElement;
+
+        Assert.True(root.TryGetProperty("isActive", out var isActiveProp));
+        Assert.Equal(System.Text.Json.JsonValueKind.True, isActiveProp.ValueKind);
+    }
+
+    [Fact]
+    public async Task Controller_GetLeaveCategories_ReturnsIsActiveInResponseForBothActiveAndInactiveItems()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveCategoryRepository(dbContext);
+        var getUseCase = new GetLeaveCategoriesUseCase(repository);
+        var createUseCase = new CreateLeaveCategoryUseCase(repository);
+        var updateUseCase = new UpdateLeaveCategoryUseCase(repository);
+        var activateUseCase = new ActivateLeaveCategoryUseCase(repository);
+        var deactivateUseCase = new DeactivateLeaveCategoryUseCase(repository);
+
+        var orgId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        var activeCat = await createUseCase.ExecuteAsync(new CreateLeaveCategoryRequest { Name = "مرخصی فعال" }, orgId, userId);
+        var inactiveCat = await createUseCase.ExecuteAsync(new CreateLeaveCategoryRequest { Name = "مرخصی غیرفعال" }, orgId, userId);
+        await deactivateUseCase.ExecuteAsync(inactiveCat.Id, userId, orgId, false);
+
+        var httpContext = new DefaultHttpContext();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Role, "CenterManager"),
+            new Claim("organization_id", orgId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var currentUserService = new CurrentUserService(httpContextAccessor);
+        var getByIdUseCase = new GetLeaveCategoryByIdUseCase(repository);
+
+        var controller = new LeaveCategoriesController(
+            createUseCase,
+            getUseCase,
+            getByIdUseCase,
+            updateUseCase,
+            activateUseCase,
+            deactivateUseCase,
+            currentUserService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        var actionResult = await controller.GetLeaveCategories(null, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<LeaveCategoryListItemDto>>(okResult.Value).ToList();
+
+        Assert.Equal(2, dtos.Count);
+
+        var activeDto = dtos.Single(d => d.Id == activeCat.Id);
+        Assert.True(activeDto.IsActive);
+
+        var inactiveDto = dtos.Single(d => d.Id == inactiveCat.Id);
+        Assert.False(inactiveDto.IsActive);
     }
 }
