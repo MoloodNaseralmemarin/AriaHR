@@ -32,16 +32,40 @@ public class TestHostEnvironment : IHostEnvironment
 public class FakeOrganizationLookupService : AriaHR.Shared.Services.IOrganizationLookupService
 {
     private readonly Dictionary<Guid, string> _organizations = new();
+    private readonly Dictionary<string, string> _phoneToOrganizations = new();
 
-    public void AddOrganization(Guid id, string name)
+    public void AddOrganization(Guid id, string name, string? managerPhone = null)
     {
         _organizations[id] = name;
+        if (!string.IsNullOrWhiteSpace(managerPhone))
+        {
+            _phoneToOrganizations[managerPhone.Trim()] = name;
+        }
     }
 
     public Task<string?> GetOrganizationNameByIdAsync(Guid organizationId, CancellationToken cancellationToken = default)
     {
         _organizations.TryGetValue(organizationId, out var name);
         return Task.FromResult(name);
+    }
+
+    public Task<string?> GetOrganizationNameForUserAsync(
+        Guid? organizationId,
+        string? phoneNumber,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (organizationId.HasValue && _organizations.TryGetValue(organizationId.Value, out var name))
+        {
+            return Task.FromResult<string?>(name);
+        }
+
+        if (!string.IsNullOrWhiteSpace(phoneNumber) && _phoneToOrganizations.TryGetValue(phoneNumber.Trim(), out var phoneName))
+        {
+            return Task.FromResult<string?>(phoneName);
+        }
+
+        return Task.FromResult<string?>(null);
     }
 }
 

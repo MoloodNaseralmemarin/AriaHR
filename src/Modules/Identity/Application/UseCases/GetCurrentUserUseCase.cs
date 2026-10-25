@@ -32,9 +32,13 @@ public class GetCurrentUserUseCase
         var roleNames = roles.Select(r => r.Name).ToList();
 
         string? orgName = null;
-        if (user.OrganizationId.HasValue && _organizationLookupService != null)
+        if (_organizationLookupService != null)
         {
-            orgName = await _organizationLookupService.GetOrganizationNameByIdAsync(user.OrganizationId.Value, cancellationToken);
+            orgName = await _organizationLookupService.GetOrganizationNameForUserAsync(
+                user.OrganizationId,
+                user.PhoneNumber,
+                user.Id,
+                cancellationToken);
         }
 
         return new CurrentUserResponse(

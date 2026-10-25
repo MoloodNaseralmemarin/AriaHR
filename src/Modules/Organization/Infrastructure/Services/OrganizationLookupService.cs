@@ -26,4 +26,51 @@ public class OrganizationLookupService : IOrganizationLookupService
             .Select(o => o.Name)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<string?> GetOrganizationNameForUserAsync(
+        Guid? organizationId,
+        string? phoneNumber,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (organizationId.HasValue && organizationId.Value != Guid.Empty)
+        {
+            var name = await GetOrganizationNameByIdAsync(organizationId.Value, cancellationToken);
+            if (!string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            var normalizedPhone = phoneNumber.Trim();
+            var matchingOrgs = await _organizationDbContext.Organizations
+                .AsNoTracking()
+                .Where(o => !o.IsDeleted && o.ManagerMobile != null && o.ManagerMobile == normalizedPhone)
+                .Select(o => o.Name)
+                .ToListAsync(cancellationToken);
+
+            if (matchingOrgs.Count == 1)
+            {
+                return matchingOrgs.Single();
+            }
+        }
+
+        if (userId != Guid.Empty)
+        {
+            var empOrgName = await _organizationDbContext.Employees
+                .AsNoTracking()
+                .Where(e => !e.IsDeleted && e.UserId == userId && e.Organization != null && !e.Organization.IsDeleted)
+                .Select(e => e.Organization!.Name)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrEmpty(empOrgName))
+            {
+                return empOrgName;
+            }
+        }
+
+        return null;
+    }
 }
