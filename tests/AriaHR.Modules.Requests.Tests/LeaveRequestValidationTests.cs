@@ -448,4 +448,131 @@ public class LeaveRequestValidationTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, userId));
     }
+
+    [Fact]
+    public async Task CreateLeaveRequest_HourlyWithNullEndDate_DefaultsEndDateToStartDate_ReturnsSuccess()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 10, 15),
+            EndDate = null, // Omitted or null from Angular form
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(11, 0),
+            Reason = "Dentist appointment"
+        };
+
+        var result = await useCase.ExecuteAsync(request, userId);
+
+        Assert.NotNull(result);
+        Assert.Equal(new DateOnly(2026, 10, 15), result.StartDate);
+        Assert.Equal(new DateOnly(2026, 10, 15), result.EndDate);
+        Assert.Equal(LeaveTypeEnum.Hourly, result.LeaveType);
+    }
+
+    [Fact]
+    public async Task CreateLeaveRequest_DailyWithNullEndDate_ThrowsArgumentException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(Guid.NewGuid(), orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 10, 15),
+            EndDate = null // Invalid for daily leave
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, userId));
+        Assert.Contains("تاریخ پایان مرخصی الزامی است", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateLeaveRequest_DailyWithDefaultEndDate_ThrowsArgumentException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(Guid.NewGuid(), orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 10, 15),
+            EndDate = default(DateOnly) // 0001-01-01
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, userId));
+        Assert.Contains("تاریخ پایان مرخصی الزامی است", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateLeaveRequest_IndependentCreation_HourlyAndDailyCreatedSuccessfully()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        // 1. Create Hourly Leave Request independently
+        var hourlyRequest = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 10, 20),
+            EndDate = null,
+            StartTime = new TimeOnly(13, 0),
+            EndTime = new TimeOnly(15, 0)
+        };
+        var hourlyResult = await useCase.ExecuteAsync(hourlyRequest, userId);
+        Assert.NotNull(hourlyResult);
+        Assert.Equal(LeaveTypeEnum.Hourly, hourlyResult.LeaveType);
+
+        // 2. Create Daily Leave Request independently
+        var dailyRequest = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 10, 25),
+            EndDate = new DateOnly(2026, 10, 27)
+        };
+        var dailyResult = await useCase.ExecuteAsync(dailyRequest, userId);
+        Assert.NotNull(dailyResult);
+        Assert.Equal(LeaveTypeEnum.Daily, dailyResult.LeaveType);
+
+        var allRequests = await repository.GetByEmployeeIdAsync(employeeId);
+        Assert.Equal(2, allRequests.Count);
+    }
 }

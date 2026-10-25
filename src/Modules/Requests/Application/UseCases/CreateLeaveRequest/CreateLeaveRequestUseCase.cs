@@ -67,29 +67,28 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
             throw new ArgumentException("تاریخ شروع مرخصی الزامی است.", nameof(request.StartDate));
         }
 
-        if (request.EndDate == default)
-        {
-            throw new ArgumentException("تاریخ پایان مرخصی الزامی است.", nameof(request.EndDate));
-        }
-
-        if (request.EndDate < request.StartDate)
-        {
-            throw new ArgumentException("تاریخ پایان مرخصی نمی‌تواند قبل از تاریخ شروع باشد.", nameof(request.EndDate));
-        }
-
         if (!string.IsNullOrWhiteSpace(request.Reason) && request.Reason.Trim().Length > 500)
         {
             throw new ArgumentException("علت مرخصی نمی‌تواند بیش از 500 کاراکتر باشد.", nameof(request.Reason));
         }
 
+        DateOnly effectiveEndDate;
         TimeOnly? startTime = null;
         TimeOnly? endTime = null;
 
         if (request.LeaveType == LeaveTypeEnum.Hourly)
         {
-            if (request.StartDate != request.EndDate)
+            if (!request.EndDate.HasValue || request.EndDate.Value == default)
+            {
+                effectiveEndDate = request.StartDate;
+            }
+            else if (request.EndDate.Value != request.StartDate)
             {
                 throw new ArgumentException("در مرخصی ساعتی، تاریخ شروع و پایان باید برابر باشد.", nameof(request.EndDate));
+            }
+            else
+            {
+                effectiveEndDate = request.EndDate.Value;
             }
 
             if (!request.StartTime.HasValue)
@@ -112,11 +111,22 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
         }
         else if (request.LeaveType == LeaveTypeEnum.Daily)
         {
+            if (!request.EndDate.HasValue || request.EndDate.Value == default)
+            {
+                throw new ArgumentException("تاریخ پایان مرخصی الزامی است.", nameof(request.EndDate));
+            }
+
+            if (request.EndDate.Value < request.StartDate)
+            {
+                throw new ArgumentException("تاریخ پایان مرخصی نمی‌تواند قبل از تاریخ شروع باشد.", nameof(request.EndDate));
+            }
+
             if (request.StartTime.HasValue || request.EndTime.HasValue)
             {
                 throw new ArgumentException("در مرخصی روزانه، زمان شروع و پایان نباید مقداردهی شوند.", nameof(request.StartTime));
             }
 
+            effectiveEndDate = request.EndDate.Value;
             startTime = null;
             endTime = null;
         }
@@ -134,7 +144,7 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
             LeaveType = request.LeaveType,
             LeaveCategoryId = request.LeaveCategoryId,
             StartDate = request.StartDate,
-            EndDate = request.EndDate,
+            EndDate = effectiveEndDate,
             StartTime = startTime,
             EndTime = endTime,
             Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
