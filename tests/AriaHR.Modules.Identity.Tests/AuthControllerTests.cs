@@ -344,7 +344,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task GetCurrentUser_CenterManagerWithOrganization_Returns200OK_WithOrganizationNameAndNoOrganizationId()
+    public async Task GetCurrentUser_CenterManagerWithOrganization_Returns200OK_WithOrganizationName()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -405,12 +405,12 @@ public class AuthControllerTests
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
         var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
-        Assert.DoesNotContain("organizationId", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"\"organizationName\":\"{expectedOrgName}\"", json);
+        Assert.DoesNotContain("organizationId", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task GetCurrentUser_UserWithoutOrganization_Returns200OK_WithNullOrganizationNameAndNoOrganizationIdInJson()
+    public async Task GetCurrentUser_UserWithoutOrganization_Returns200OK_WithNullOrganizationNameInJson_AndNoOrganizationId()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -460,8 +460,8 @@ public class AuthControllerTests
 
         var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
         var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
-        Assert.DoesNotContain("organizationId", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"organizationName\":null", json);
+        Assert.DoesNotContain("organizationId", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
