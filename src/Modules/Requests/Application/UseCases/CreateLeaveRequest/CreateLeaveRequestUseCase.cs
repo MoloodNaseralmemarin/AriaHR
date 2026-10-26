@@ -121,11 +121,6 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
                 throw new ArgumentException("تاریخ پایان مرخصی نمی‌تواند قبل از تاریخ شروع باشد.", nameof(request.EndDate));
             }
 
-            if (request.StartTime.HasValue || request.EndTime.HasValue)
-            {
-                throw new ArgumentException("در مرخصی روزانه، زمان شروع و پایان نباید مقداردهی شوند.", nameof(request.StartTime));
-            }
-
             effectiveEndDate = request.EndDate.Value;
             startTime = null;
             endTime = null;
