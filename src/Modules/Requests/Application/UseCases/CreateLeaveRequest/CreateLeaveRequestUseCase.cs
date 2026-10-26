@@ -76,6 +76,11 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
         TimeOnly? startTime = null;
         TimeOnly? endTime = null;
 
+        if (!Enum.IsDefined(typeof(LeaveTypeEnum), request.LeaveType))
+        {
+            throw new ArgumentException("نوع مرخصی نامعتبر است.", nameof(request.LeaveType));
+        }
+
         if (request.LeaveType == LeaveTypeEnum.Hourly)
         {
             if (!request.EndDate.HasValue || request.EndDate.Value == default)
@@ -109,7 +114,7 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
             startTime = request.StartTime;
             endTime = request.EndTime;
         }
-        else if (request.LeaveType == LeaveTypeEnum.Daily)
+        else // Daily leave
         {
             if (!request.EndDate.HasValue || request.EndDate.Value == default)
             {
@@ -124,10 +129,6 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
             effectiveEndDate = request.EndDate.Value;
             startTime = null;
             endTime = null;
-        }
-        else
-        {
-            throw new ArgumentException("نوع مرخصی نامعتبر است.", nameof(request.LeaveType));
         }
 
         var now = DateTime.UtcNow;
