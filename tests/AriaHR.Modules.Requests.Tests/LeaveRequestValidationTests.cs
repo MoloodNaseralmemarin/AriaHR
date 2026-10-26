@@ -610,4 +610,147 @@ public class LeaveRequestValidationTests
         var allRequests = await repository.GetByEmployeeIdAsync(employeeId);
         Assert.Equal(2, allRequests.Count);
     }
+
+    [Fact]
+    public async Task CreateLeaveRequest_DailySingleDaySameStartAndEndDate_ReturnsSuccess()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 11, 1),
+            EndDate = new DateOnly(2026, 11, 1)
+        };
+
+        var result = await useCase.ExecuteAsync(request, userId);
+
+        Assert.NotNull(result);
+        Assert.Equal(LeaveTypeEnum.Daily, result.LeaveType);
+        Assert.Equal(new DateOnly(2026, 11, 1), result.StartDate);
+        Assert.Equal(new DateOnly(2026, 11, 1), result.EndDate);
+        Assert.Null(result.StartTime);
+        Assert.Null(result.EndTime);
+    }
+
+    [Fact]
+    public async Task CreateLeaveRequest_HourlyEqualStartAndEndTime_ThrowsArgumentException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(Guid.NewGuid(), orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 11, 2),
+            EndDate = new DateOnly(2026, 11, 2),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(10, 0)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, userId));
+        Assert.Contains("بعد از زمان شروع", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateLeaveRequest_MissingStartDate_ThrowsArgumentException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(Guid.NewGuid(), orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = default(DateOnly), // 0001-01-01
+            EndDate = new DateOnly(2026, 11, 5)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, userId));
+        Assert.Contains("تاریخ شروع مرخصی الزامی است", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateLeaveRequest_InvalidLeaveType_ThrowsArgumentException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(Guid.NewGuid(), orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = (LeaveTypeEnum)999, // Invalid enum value
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 11, 5),
+            EndDate = new DateOnly(2026, 11, 5)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, userId));
+        Assert.Contains("نوع مرخصی نامعتبر است", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateLeaveRequest_HourlyDurationCalculation_IsCorrect()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 11, 10),
+            EndDate = new DateOnly(2026, 11, 10),
+            StartTime = new TimeOnly(8, 30),
+            EndTime = new TimeOnly(12, 15)
+        };
+
+        var result = await useCase.ExecuteAsync(request, userId);
+
+        Assert.NotNull(result);
+        Assert.True(result.StartTime.HasValue);
+        Assert.True(result.EndTime.HasValue);
+
+        TimeSpan duration = result.EndTime.Value - result.StartTime.Value;
+        Assert.Equal(TimeSpan.FromMinutes(225), duration); // 3 hours 45 mins
+    }
 }
