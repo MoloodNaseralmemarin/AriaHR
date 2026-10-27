@@ -13,7 +13,9 @@ using AriaHR.Modules.Organization.Application.UseCases.GetRecentActivities;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentCenters;
 using AriaHR.Modules.Organization.Application.UseCases.GetRecentOrganizations;
 using AriaHR.Modules.Organization.Application.UseCases.GetSystemAdminDashboardOverview;
+using AriaHR.Modules.Organization.Application.UseCases.GetCenterManagerDashboard;
 using AriaHR.Modules.Organization.Application.UseCases.GetTotalOrganizationsCount;
+using AriaHR.Modules.Organization.Infrastructure.UseCases.GetCenterManagerDashboard;
 using AriaHR.Modules.Organization.Application.UseCases.UpdateCenter;
 using AriaHR.Modules.Organization.Application.UseCases.UpdateCenterStatus;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
@@ -75,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IGetOrganizationCentersUseCase, GetOrganizationCentersUseCase>();
         services.AddScoped<IUpdateCenterUseCase, UpdateCenterUseCase>();
         services.AddScoped<IUpdateCenterStatusUseCase, UpdateCenterStatusUseCase>();
+        services.AddScoped<ICenterManagerDashboardUseCase, GetCenterManagerDashboardUseCase>();
 
         return services;
     }
