@@ -45,6 +45,27 @@ public class LeaveCategoryRepository : ILeaveCategoryRepository
             .FirstOrDefaultAsync(lt => lt.OrganizationId == organizationId && !lt.IsDeleted && lt.Name.ToLower() == trimmedName.ToLower(), cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, string>> GetNamesByIdsAsync(
+        IEnumerable<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids == null)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        var distinctIds = ids.Where(id => id != Guid.Empty).Distinct().ToList();
+        if (!distinctIds.Any())
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        return await _dbContext.LeaveCategories
+            .AsNoTracking()
+            .Where(lt => distinctIds.Contains(lt.Id) && !lt.IsDeleted)
+            .ToDictionaryAsync(lt => lt.Id, lt => lt.Name, cancellationToken);
+    }
+
     public async Task AddAsync(LeaveCategory category, CancellationToken cancellationToken = default)
     {
         await _dbContext.LeaveCategories.AddAsync(category, cancellationToken);

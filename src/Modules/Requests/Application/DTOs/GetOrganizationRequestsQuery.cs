@@ -8,4 +8,5 @@ public class GetOrganizationRequestsQuery
     public Guid? EmployeeId { get; set; }
     public DateOnly? From { get; set; }
     public DateOnly? To { get; set; }
+    public Guid? OrganizationId { get; set; }
 }

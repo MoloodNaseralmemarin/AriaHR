@@ -9,6 +9,10 @@ public class LeaveRequestDto
     public Guid OrganizationId { get; set; }
     public LeaveType LeaveType { get; set; }
     public Guid LeaveCategoryId { get; set; }
+    public string? EmployeeFirstName { get; set; }
+    public string? EmployeeLastName { get; set; }
+    public string? EmployeeFullName { get; set; }
+    public string? LeaveCategoryName { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
     public TimeOnly? StartTime { get; set; }

@@ -8,6 +8,7 @@ public interface ILeaveCategoryRepository
     Task<IReadOnlyList<LeaveCategory>> GetAllActiveAsync(Guid organizationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LeaveCategory>> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default);
     Task<LeaveCategory?> GetByNameAndOrganizationAsync(string name, Guid organizationId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<Guid, string>> GetNamesByIdsAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default);
     Task AddAsync(LeaveCategory category, CancellationToken cancellationToken = default);
     Task UpdateAsync(LeaveCategory category, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

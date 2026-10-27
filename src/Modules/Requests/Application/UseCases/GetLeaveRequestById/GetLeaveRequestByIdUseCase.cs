@@ -7,13 +7,16 @@ namespace AriaHR.Modules.Requests.Application.UseCases.GetLeaveRequestById;
 public class GetLeaveRequestByIdUseCase : IGetLeaveRequestByIdUseCase
 {
     private readonly ILeaveRequestRepository _repository;
+    private readonly ILeaveCategoryRepository _leaveCategoryRepository;
     private readonly IEmployeeLookupService _employeeLookupService;
 
     public GetLeaveRequestByIdUseCase(
         ILeaveRequestRepository repository,
+        ILeaveCategoryRepository leaveCategoryRepository,
         IEmployeeLookupService employeeLookupService)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _leaveCategoryRepository = leaveCategoryRepository ?? throw new ArgumentNullException(nameof(leaveCategoryRepository));
         _employeeLookupService = employeeLookupService ?? throw new ArgumentNullException(nameof(employeeLookupService));
     }
 
@@ -56,6 +59,12 @@ public class GetLeaveRequestByIdUseCase : IGetLeaveRequestByIdUseCase
             }
         }
 
+        var employeeNames = await _employeeLookupService.GetEmployeeNamesByIdsAsync(new[] { request.EmployeeId }, cancellationToken);
+        var categoryNames = await _leaveCategoryRepository.GetNamesByIdsAsync(new[] { request.LeaveCategoryId }, cancellationToken);
+
+        employeeNames.TryGetValue(request.EmployeeId, out var empName);
+        categoryNames.TryGetValue(request.LeaveCategoryId, out var categoryName);
+
         return new LeaveRequestDto
         {
             Id = request.Id,
@@ -63,6 +72,10 @@ public class GetLeaveRequestByIdUseCase : IGetLeaveRequestByIdUseCase
             OrganizationId = request.OrganizationId,
             LeaveType = request.LeaveType,
             LeaveCategoryId = request.LeaveCategoryId,
+            EmployeeFirstName = empName.FirstName,
+            EmployeeLastName = empName.LastName,
+            EmployeeFullName = empName.FullName,
+            LeaveCategoryName = categoryName,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             StartTime = request.StartTime,

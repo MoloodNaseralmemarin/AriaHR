@@ -220,9 +220,14 @@ public class LeaveRequestsController : ControllerBase
             {
                 return Forbid();
             }
+
+            if (query?.OrganizationId.HasValue == true && query.OrganizationId.Value != Guid.Empty && query.OrganizationId.Value != userOrgId.Value)
+            {
+                return Forbid();
+            }
         }
 
-        Guid orgId = _currentUserService.ResolveOrganizationId();
+        Guid orgId = _currentUserService.ResolveOrganizationId(query?.OrganizationId);
         if (orgId == Guid.Empty)
         {
             return BadRequest(new ProblemDetails
