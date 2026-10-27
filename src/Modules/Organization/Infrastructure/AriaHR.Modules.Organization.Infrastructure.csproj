@@ -15,6 +15,9 @@
     <ProjectReference Include="..\..\Identity\Domain\AriaHR.Modules.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\Identity\Application\AriaHR.Modules.Identity.Application.csproj" />
     <ProjectReference Include="..\..\Identity\Infrastructure\AriaHR.Modules.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Attendance\Infrastructure\AriaHR.Modules.Attendance.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Scheduling\Infrastructure\AriaHR.Modules.Scheduling.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Requests\Infrastructure\AriaHR.Modules.Requests.Infrastructure.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
