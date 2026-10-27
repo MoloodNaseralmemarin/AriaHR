@@ -37,6 +37,12 @@ public class LeaveRequestValidationTests
             if (userId == Guid.Empty) return Task.FromResult<(Guid, Guid)?>(null);
             return Task.FromResult<(Guid, Guid)?>((_employeeId, _organizationId));
         }
+
+        public Task<IReadOnlyDictionary<Guid, (string FirstName, string LastName, string FullName)>> GetEmployeeNamesByIdsAsync(IEnumerable<Guid> employeeIds, CancellationToken cancellationToken = default)
+        {
+            IReadOnlyDictionary<Guid, (string FirstName, string LastName, string FullName)> result = new Dictionary<Guid, (string, string, string)>();
+            return Task.FromResult(result);
+        }
     }
 
     private async Task<LeaveCategory> SeedCategoryAsync(RequestsDbContext dbContext, Guid orgId, bool isActive = true, bool isDeleted = false)

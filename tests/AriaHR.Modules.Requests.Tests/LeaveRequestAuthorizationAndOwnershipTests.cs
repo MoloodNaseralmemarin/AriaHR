@@ -41,6 +41,12 @@ public class LeaveRequestAuthorizationAndOwnershipTests
             }
             return Task.FromResult<(Guid, Guid)?>(null);
         }
+
+        public Task<IReadOnlyDictionary<Guid, (string FirstName, string LastName, string FullName)>> GetEmployeeNamesByIdsAsync(IEnumerable<Guid> employeeIds, CancellationToken cancellationToken = default)
+        {
+            IReadOnlyDictionary<Guid, (string FirstName, string LastName, string FullName)> result = new Dictionary<Guid, (string, string, string)>();
+            return Task.FromResult(result);
+        }
     }
 
     [Fact]
@@ -76,7 +82,8 @@ public class LeaveRequestAuthorizationAndOwnershipTests
         await repository.AddAsync(leaveRequest);
         await repository.SaveChangesAsync();
 
-        var useCase = new GetLeaveRequestByIdUseCase(repository, lookupService);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var useCase = new GetLeaveRequestByIdUseCase(repository, categoryRepository, lookupService);
 
         // Employee A tries to access Employee B's request
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
@@ -214,8 +221,9 @@ public class LeaveRequestAuthorizationAndOwnershipTests
         await repository.SaveChangesAsync();
 
         var lookupService = new DictionaryEmployeeLookupService(new Dictionary<Guid, (Guid, Guid)>());
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
 
-        var useCase = new GetLeaveRequestByIdUseCase(repository, lookupService);
+        var useCase = new GetLeaveRequestByIdUseCase(repository, categoryRepository, lookupService);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             useCase.ExecuteAsync(
