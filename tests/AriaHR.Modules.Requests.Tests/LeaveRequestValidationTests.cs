@@ -759,4 +759,430 @@ public class LeaveRequestValidationTests
         TimeSpan duration = result.EndTime.Value - result.StartTime.Value;
         Assert.Equal(TimeSpan.FromMinutes(225), duration); // 3 hours 45 mins
     }
+
+    // --- Scenario 1: Two daily annual leave requests for the same employee and date: second rejected ---
+    [Fact]
+    public async Task CreateLeaveRequest_DuplicateDailySameDate_ThrowsConflictException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request1 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 1),
+            EndDate = new DateOnly(2026, 12, 1)
+        };
+        await useCase.ExecuteAsync(request1, userId);
+
+        var request2 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 1),
+            EndDate = new DateOnly(2026, 12, 1)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request2, userId));
+        Assert.Contains("یک درخواست مرخصی برای تاریخ یا بازه زمانی انتخاب شده از قبل وجود دارد", ex.Message);
+    }
+
+    // --- Scenario 2: Two daily leave requests with overlapping date ranges: second rejected ---
+    [Fact]
+    public async Task CreateLeaveRequest_OverlappingDailyRanges_ThrowsConflictException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request1 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 5),
+            EndDate = new DateOnly(2026, 12, 10)
+        };
+        await useCase.ExecuteAsync(request1, userId);
+
+        var request2 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 8),
+            EndDate = new DateOnly(2026, 12, 15)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request2, userId));
+        Assert.Contains("یک درخواست مرخصی برای تاریخ یا بازه زمانی انتخاب شده از قبل وجود دارد", ex.Message);
+    }
+
+    // --- Scenario 3: Daily leave and hourly leave on the same date: second rejected ---
+    [Fact]
+    public async Task CreateLeaveRequest_DailyAndHourlyOnSameDate_ThrowsConflictException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        // First submit daily leave
+        var daily = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 20),
+            EndDate = new DateOnly(2026, 12, 20)
+        };
+        await useCase.ExecuteAsync(daily, userId);
+
+        // Attempt hourly leave on same day
+        var hourly = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 20),
+            EndDate = new DateOnly(2026, 12, 20),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(12, 0)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(hourly, userId));
+        Assert.Contains("یک درخواست مرخصی برای تاریخ یا بازه زمانی انتخاب شده از قبل وجود دارد", ex.Message);
+    }
+
+    // --- Scenario 4: Two non-overlapping hourly requests on same date: allowed ---
+    [Fact]
+    public async Task CreateLeaveRequest_AdjacentOrNonOverlappingHourly_Succeeds()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        // 08:00 - 10:00
+        var hourly1 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 22),
+            EndDate = new DateOnly(2026, 12, 22),
+            StartTime = new TimeOnly(8, 0),
+            EndTime = new TimeOnly(10, 0)
+        };
+        var res1 = await useCase.ExecuteAsync(hourly1, userId);
+        Assert.NotNull(res1);
+
+        // 10:00 - 12:00 (Adjacent end-to-start, no overlap)
+        var hourly2 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 22),
+            EndDate = new DateOnly(2026, 12, 22),
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(12, 0)
+        };
+        var res2 = await useCase.ExecuteAsync(hourly2, userId);
+        Assert.NotNull(res2);
+    }
+
+    // --- Scenario 5: Two overlapping hourly requests: second rejected ---
+    [Fact]
+    public async Task CreateLeaveRequest_OverlappingHourly_ThrowsConflictException()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        // 09:00 - 11:00
+        var hourly1 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 25),
+            EndDate = new DateOnly(2026, 12, 25),
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(11, 0)
+        };
+        await useCase.ExecuteAsync(hourly1, userId);
+
+        // 10:30 - 12:00 (Overlaps 10:30-11:00)
+        var hourly2 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Hourly,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2026, 12, 25),
+            EndDate = new DateOnly(2026, 12, 25),
+            StartTime = new TimeOnly(10, 30),
+            EndTime = new TimeOnly(12, 0)
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(hourly2, userId));
+        Assert.Contains("یک درخواست مرخصی برای تاریخ یا بازه زمانی انتخاب شده از قبل وجود دارد", ex.Message);
+    }
+
+    // --- Scenario 6: Rejected or Cancelled requests do not block new requests ---
+    [Fact]
+    public async Task CreateLeaveRequest_RejectedOrCancelledRequests_DoesNotBlockNewRequest()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var date = new DateOnly(2026, 12, 28);
+
+        // Seed a Rejected request
+        dbContext.LeaveRequests.Add(new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employeeId,
+            OrganizationId = orgId,
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = date,
+            EndDate = date,
+            Status = RequestStatus.Rejected,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        // Seed a Cancelled request
+        dbContext.LeaveRequests.Add(new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employeeId,
+            OrganizationId = orgId,
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = date,
+            EndDate = date,
+            Status = RequestStatus.Cancelled,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        // New request for same date should succeed
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = date,
+            EndDate = date
+        };
+
+        var result = await useCase.ExecuteAsync(request, userId);
+        Assert.NotNull(result);
+        Assert.Equal(RequestStatus.Pending, result.Status);
+    }
+
+    // --- Scenario 7: Pending and Approved requests are considered ---
+    [Fact]
+    public async Task CreateLeaveRequest_ApprovedRequest_CausesConflict()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var date = new DateOnly(2026, 12, 30);
+
+        // Seed an Approved request
+        dbContext.LeaveRequests.Add(new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employeeId,
+            OrganizationId = orgId,
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = date,
+            EndDate = date,
+            Status = RequestStatus.Approved,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var request = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = date,
+            EndDate = date
+        };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(request, userId));
+        Assert.Contains("یک درخواست مرخصی برای تاریخ یا بازه زمانی انتخاب شده از قبل وجود دارد", ex.Message);
+    }
+
+    // --- Scenario 8: Different employees do not block each other ---
+    [Fact]
+    public async Task CreateLeaveRequest_DifferentEmployees_DoNotConflict()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+
+        var userId1 = Guid.NewGuid();
+        var employeeId1 = Guid.NewGuid();
+        var lookupService1 = new MockEmployeeLookupService(employeeId1, orgId);
+
+        var userId2 = Guid.NewGuid();
+        var employeeId2 = Guid.NewGuid();
+        var lookupService2 = new MockEmployeeLookupService(employeeId2, orgId);
+
+        var date = new DateOnly(2027, 1, 5);
+
+        // Employee 1 submits request
+        var useCase1 = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService1);
+        await useCase1.ExecuteAsync(new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = date,
+            EndDate = date
+        }, userId1);
+
+        // Employee 2 submits request for same date -> Should succeed
+        var useCase2 = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService2);
+        var res2 = await useCase2.ExecuteAsync(new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = date,
+            EndDate = date
+        }, userId2);
+
+        Assert.NotNull(res2);
+        Assert.Equal(employeeId2, res2.EmployeeId);
+    }
+
+    // --- Scenario 9: Exclude request when checking conflicts (Self-exclusion during update check) ---
+    [Fact]
+    public async Task HasConflictingLeaveRequestAsync_ExcludingSelfRequestId_DoesNotConflict()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var date = new DateOnly(2027, 1, 10);
+
+        var existingRequest = new LeaveRequest
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employeeId,
+            OrganizationId = orgId,
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = Guid.NewGuid(),
+            StartDate = date,
+            EndDate = date,
+            Status = RequestStatus.Pending,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        dbContext.LeaveRequests.Add(existingRequest);
+        await dbContext.SaveChangesAsync();
+
+        // Check conflict excluding existingRequest.Id -> Should be false
+        bool hasConflict = await repository.HasConflictingLeaveRequestAsync(
+            employeeId,
+            orgId,
+            LeaveTypeEnum.Daily,
+            date,
+            date,
+            null,
+            null,
+            excludeRequestId: existingRequest.Id);
+
+        Assert.False(hasConflict);
+    }
+
+    // --- Scenario 10: Concurrency protection ---
+    [Fact]
+    public async Task CreateLeaveRequest_ConcurrentSubmissions_OnlyOneSucceeds()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new LeaveRequestRepository(dbContext);
+        var categoryRepository = new LeaveCategoryRepository(dbContext);
+        var userId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var orgId = Guid.NewGuid();
+        var category = await SeedCategoryAsync(dbContext, orgId);
+        var lookupService = new MockEmployeeLookupService(employeeId, orgId);
+
+        var useCase = new CreateLeaveRequestUseCase(repository, categoryRepository, lookupService);
+
+        var request1 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2027, 2, 1),
+            EndDate = new DateOnly(2027, 2, 1)
+        };
+
+        var request2 = new CreateLeaveRequestRequest
+        {
+            LeaveType = LeaveTypeEnum.Daily,
+            LeaveCategoryId = category.Id,
+            StartDate = new DateOnly(2027, 2, 1),
+            EndDate = new DateOnly(2027, 2, 1)
+        };
+
+        // Run both requests concurrently
+        Task task1 = useCase.ExecuteAsync(request1, userId);
+        Task task2 = useCase.ExecuteAsync(request2, userId);
+
+        var aggregateEx = await Record.ExceptionAsync(() => Task.WhenAll(task1, task2));
+
+        Assert.NotNull(aggregateEx);
+        // At least one task should throw ArgumentException due to duplicate/overlapping leave request
+        var requestsInDb = await dbContext.LeaveRequests.Where(r => r.EmployeeId == employeeId).ToListAsync();
+        Assert.Single(requestsInDb);
+    }
 }

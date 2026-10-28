@@ -82,4 +82,83 @@ public class LeaveRequestRepository : ILeaveRequestRepository
     {
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public bool IsRelational()
+    {
+        return _dbContext.Database.IsRelational();
+    }
+
+    public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        if (_dbContext.Database.IsRelational() && _dbContext.Database.CurrentTransaction == null)
+        {
+            await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+        }
+    }
+
+    public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        if (_dbContext.Database.CurrentTransaction != null)
+        {
+            await _dbContext.Database.CommitTransactionAsync(cancellationToken);
+        }
+    }
+
+    public async Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        if (_dbContext.Database.CurrentTransaction != null)
+        {
+            await _dbContext.Database.RollbackTransactionAsync(cancellationToken);
+        }
+    }
+
+    public async Task<bool> HasConflictingLeaveRequestAsync(
+        Guid employeeId,
+        Guid organizationId,
+        LeaveType leaveType,
+        DateOnly startDate,
+        DateOnly endDate,
+        TimeOnly? startTime,
+        TimeOnly? endTime,
+        Guid? excludeRequestId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.LeaveRequests
+            .Where(r => !r.IsDeleted &&
+                        r.EmployeeId == employeeId &&
+                        r.OrganizationId == organizationId &&
+                        (r.Status == RequestStatus.Pending || r.Status == RequestStatus.Approved));
+
+        if (excludeRequestId.HasValue && excludeRequestId.Value != Guid.Empty)
+        {
+            query = query.Where(r => r.Id != excludeRequestId.Value);
+        }
+
+        if (leaveType == LeaveType.Daily)
+        {
+            // Daily leave covers the entire range [startDate, endDate]
+            // Any existing daily or hourly request that falls within [startDate, endDate] conflicts.
+            query = query.Where(r => r.StartDate <= endDate && r.EndDate >= startDate);
+            return await query.AnyAsync(cancellationToken);
+        }
+        else // LeaveType.Hourly
+        {
+            var reqStartTime = startTime ?? TimeOnly.MinValue;
+            var reqEndTime = endTime ?? TimeOnly.MaxValue;
+
+            // Hourly leave occurs on startDate (which equals endDate) during [startTime, endTime].
+            // It conflicts with:
+            // 1. Any existing Daily leave that includes startDate (r.StartDate <= startDate && r.EndDate >= startDate)
+            // 2. Any existing Hourly leave on startDate whose time interval overlaps with [startTime, endTime]
+            //    (i.e. r.StartTime < endTime && r.EndTime > startTime)
+
+            query = query.Where(r => r.StartDate <= startDate && r.EndDate >= startDate)
+                         .Where(r => r.LeaveType == LeaveType.Daily ||
+                                    (r.LeaveType == LeaveType.Hourly &&
+                                     r.StartTime.HasValue && r.EndTime.HasValue &&
+                                     r.StartTime.Value < reqEndTime && r.EndTime.Value > reqStartTime));
+
+            return await query.AnyAsync(cancellationToken);
+        }
+    }
 }

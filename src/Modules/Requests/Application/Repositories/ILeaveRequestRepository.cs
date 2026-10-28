@@ -17,4 +17,20 @@ public interface ILeaveRequestRepository
         CancellationToken cancellationToken = default);
     Task UpdateAsync(LeaveRequest leaveRequest, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    Task<bool> HasConflictingLeaveRequestAsync(
+        Guid employeeId,
+        Guid organizationId,
+        LeaveType leaveType,
+        DateOnly startDate,
+        DateOnly endDate,
+        TimeOnly? startTime,
+        TimeOnly? endTime,
+        Guid? excludeRequestId = null,
+        CancellationToken cancellationToken = default);
+
+    bool IsRelational();
+    Task BeginTransactionAsync(CancellationToken cancellationToken = default);
+    Task CommitTransactionAsync(CancellationToken cancellationToken = default);
+    Task RollbackTransactionAsync(CancellationToken cancellationToken = default);
 }
