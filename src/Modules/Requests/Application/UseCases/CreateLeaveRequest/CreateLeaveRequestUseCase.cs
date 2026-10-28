@@ -131,44 +131,72 @@ public class CreateLeaveRequestUseCase : ICreateLeaveRequestUseCase
             endTime = null;
         }
 
-        var now = DateTime.UtcNow;
-        var leaveRequest = new LeaveRequest
-        {
-            Id = Guid.NewGuid(),
-            EmployeeId = employeeId,
-            OrganizationId = organizationId,
-            LeaveType = request.LeaveType,
-            LeaveCategoryId = request.LeaveCategoryId,
-            StartDate = request.StartDate,
-            EndDate = effectiveEndDate,
-            StartTime = startTime,
-            EndTime = endTime,
-            Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
-            Status = RequestStatus.Pending,
-            CreatedAtUtc = now,
-            CreatedByUserId = userId
-        };
+        await _repository.BeginTransactionAsync(cancellationToken);
 
-        await _repository.AddAsync(leaveRequest, cancellationToken);
-        await _repository.SaveChangesAsync(cancellationToken);
-
-        return new LeaveRequestDto
+        try
         {
-            Id = leaveRequest.Id,
-            EmployeeId = leaveRequest.EmployeeId,
-            OrganizationId = leaveRequest.OrganizationId,
-            LeaveType = leaveRequest.LeaveType,
-            LeaveCategoryId = leaveRequest.LeaveCategoryId,
-            StartDate = leaveRequest.StartDate,
-            EndDate = leaveRequest.EndDate,
-            StartTime = leaveRequest.StartTime,
-            EndTime = leaveRequest.EndTime,
-            Reason = leaveRequest.Reason,
-            Status = leaveRequest.Status,
-            RejectedReason = leaveRequest.RejectedReason,
-            ApprovedAt = leaveRequest.ApprovedAt,
-            ApprovedBy = leaveRequest.ApprovedBy,
-            CreatedAtUtc = leaveRequest.CreatedAtUtc
-        };
+            bool hasConflict = await _repository.HasConflictingLeaveRequestAsync(
+                employeeId,
+                organizationId,
+                request.LeaveType,
+                request.StartDate,
+                effectiveEndDate,
+                startTime,
+                endTime,
+                excludeRequestId: null,
+                cancellationToken);
+
+            if (hasConflict)
+            {
+                throw new ArgumentException("یک درخواست مرخصی برای تاریخ یا بازه زمانی انتخاب شده از قبل وجود دارد. ثبت درخواست تکراری یا همپوشانی‌دار مجاز نمی‌باشد.");
+            }
+
+            var now = DateTime.UtcNow;
+            var leaveRequest = new LeaveRequest
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = employeeId,
+                OrganizationId = organizationId,
+                LeaveType = request.LeaveType,
+                LeaveCategoryId = request.LeaveCategoryId,
+                StartDate = request.StartDate,
+                EndDate = effectiveEndDate,
+                StartTime = startTime,
+                EndTime = endTime,
+                Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
+                Status = RequestStatus.Pending,
+                CreatedAtUtc = now,
+                CreatedByUserId = userId
+            };
+
+            await _repository.AddAsync(leaveRequest, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
+
+            await _repository.CommitTransactionAsync(cancellationToken);
+
+            return new LeaveRequestDto
+            {
+                Id = leaveRequest.Id,
+                EmployeeId = leaveRequest.EmployeeId,
+                OrganizationId = leaveRequest.OrganizationId,
+                LeaveType = leaveRequest.LeaveType,
+                LeaveCategoryId = leaveRequest.LeaveCategoryId,
+                StartDate = leaveRequest.StartDate,
+                EndDate = leaveRequest.EndDate,
+                StartTime = leaveRequest.StartTime,
+                EndTime = leaveRequest.EndTime,
+                Reason = leaveRequest.Reason,
+                Status = leaveRequest.Status,
+                RejectedReason = leaveRequest.RejectedReason,
+                ApprovedAt = leaveRequest.ApprovedAt,
+                ApprovedBy = leaveRequest.ApprovedBy,
+                CreatedAtUtc = leaveRequest.CreatedAtUtc
+            };
+        }
+        catch
+        {
+            await _repository.RollbackTransactionAsync(cancellationToken);
+            throw;
+        }
     }
 }
