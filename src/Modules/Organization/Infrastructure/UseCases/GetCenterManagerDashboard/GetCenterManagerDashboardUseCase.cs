@@ -66,7 +66,10 @@ public class GetCenterManagerDashboardUseCase : ICenterManagerDashboardUseCase
                 PresentTodayCount = 0,
                 AbsentTodayCount = 0,
                 ApprovedLeaveTodayCount = 0,
-                LateArrivalsTodayCount = 0
+                LateArrivalsTodayCount = 0,
+                PendingLeaveRequestsCount = 0,
+                PendingAttendanceCorrectionRequestsCount = 0,
+                UnapprovedShiftsCount = 0
             };
         }
 
@@ -132,13 +135,22 @@ public class GetCenterManagerDashboardUseCase : ICenterManagerDashboardUseCase
         int absentTodayCount = scheduledEmployeeIds
             .Count(empId => !presentEmployeeSet.Contains(empId) && !approvedLeaveEmployeeSet.Contains(empId));
 
+        // 6. Pending Leave Requests: Non-deleted pending leave requests for active center employees
+        var pendingLeaveRequestsCount = await _requestsDbContext.LeaveRequests
+            .AsNoTracking()
+            .Where(l => !l.IsDeleted && l.OrganizationId == orgId && activeEmployeeIds.Contains(l.EmployeeId) && l.Status == RequestStatus.Pending)
+            .CountAsync(cancellationToken);
+
         return new CenterManagerDashboardResponse
         {
             ActiveEmployeesCount = activeEmployeesCount,
             PresentTodayCount = presentTodayCount,
             AbsentTodayCount = absentTodayCount,
             ApprovedLeaveTodayCount = approvedLeaveTodayCount,
-            LateArrivalsTodayCount = lateArrivalsTodayCount
+            LateArrivalsTodayCount = lateArrivalsTodayCount,
+            PendingLeaveRequestsCount = pendingLeaveRequestsCount,
+            PendingAttendanceCorrectionRequestsCount = 0,
+            UnapprovedShiftsCount = 0
         };
     }
 }

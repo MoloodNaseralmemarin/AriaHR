@@ -147,6 +147,56 @@ public class CenterManagerDashboardTests
         Assert.Equal(1, result.ApprovedLeaveTodayCount); // emp3
         Assert.Equal(1, result.LateArrivalsTodayCount); // emp2
         Assert.Equal(1, result.AbsentTodayCount); // emp4 (scheduled, no attendance, no leave)
+        Assert.Equal(0, result.PendingLeaveRequestsCount);
+        Assert.Equal(0, result.PendingAttendanceCorrectionRequestsCount);
+        Assert.Equal(0, result.UnapprovedShiftsCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CalculatesPendingLeaveRequestsCountAccurately()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var managerId = Guid.NewGuid();
+
+        using var orgDb = GetInMemoryOrganizationDbContext();
+        using var attDb = GetInMemoryAttendanceDbContext();
+        using var schDb = GetInMemorySchedulingDbContext();
+        using var reqDb = GetInMemoryRequestsDbContext();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var emp1 = new Employee { Id = Guid.NewGuid(), OrganizationId = orgId, IsActive = true, IsDeleted = false, PersonnelCode = "E1", NationalCode = "N1" };
+        var emp2 = new Employee { Id = Guid.NewGuid(), OrganizationId = orgId, IsActive = true, IsDeleted = false, PersonnelCode = "E2", NationalCode = "N2" };
+        var empInactive = new Employee { Id = Guid.NewGuid(), OrganizationId = orgId, IsActive = false, IsDeleted = false, PersonnelCode = "E3", NationalCode = "N3" };
+
+        orgDb.Employees.AddRange(emp1, emp2, empInactive);
+        await orgDb.SaveChangesAsync();
+
+        // Pending leave requests for active employees (Count = 2)
+        var pending1 = new LeaveRequest { Id = Guid.NewGuid(), OrganizationId = orgId, EmployeeId = emp1.Id, Status = RequestStatus.Pending, StartDate = today, EndDate = today, LeaveType = LeaveType.Daily, IsDeleted = false };
+        var pending2 = new LeaveRequest { Id = Guid.NewGuid(), OrganizationId = orgId, EmployeeId = emp2.Id, Status = RequestStatus.Pending, StartDate = today.AddDays(1), EndDate = today.AddDays(2), LeaveType = LeaveType.Daily, IsDeleted = false };
+
+        // Excluded requests:
+        var approved = new LeaveRequest { Id = Guid.NewGuid(), OrganizationId = orgId, EmployeeId = emp1.Id, Status = RequestStatus.Approved, StartDate = today, EndDate = today, LeaveType = LeaveType.Daily, IsDeleted = false };
+        var rejected = new LeaveRequest { Id = Guid.NewGuid(), OrganizationId = orgId, EmployeeId = emp1.Id, Status = RequestStatus.Rejected, StartDate = today, EndDate = today, LeaveType = LeaveType.Daily, IsDeleted = false };
+        var cancelled = new LeaveRequest { Id = Guid.NewGuid(), OrganizationId = orgId, EmployeeId = emp1.Id, Status = RequestStatus.Cancelled, StartDate = today, EndDate = today, LeaveType = LeaveType.Daily, IsDeleted = false };
+        var softDeleted = new LeaveRequest { Id = Guid.NewGuid(), OrganizationId = orgId, EmployeeId = emp1.Id, Status = RequestStatus.Pending, StartDate = today, EndDate = today, LeaveType = LeaveType.Daily, IsDeleted = true };
+        var inactiveEmpPending = new LeaveRequest { Id = Guid.NewGuid(), OrganizationId = orgId, EmployeeId = empInactive.Id, Status = RequestStatus.Pending, StartDate = today, EndDate = today, LeaveType = LeaveType.Daily, IsDeleted = false };
+
+        reqDb.LeaveRequests.AddRange(pending1, pending2, approved, rejected, cancelled, softDeleted, inactiveEmpPending);
+        await reqDb.SaveChangesAsync();
+
+        var currentUserService = CreateCurrentUserService(managerId, "CenterManager", orgId);
+        var useCase = new GetCenterManagerDashboardUseCase(orgDb, attDb, schDb, reqDb, currentUserService);
+
+        // Act
+        var result = await useCase.ExecuteAsync();
+
+        // Assert
+        Assert.Equal(2, result.PendingLeaveRequestsCount);
+        Assert.Equal(0, result.PendingAttendanceCorrectionRequestsCount);
+        Assert.Equal(0, result.UnapprovedShiftsCount);
     }
 
     [Fact]
