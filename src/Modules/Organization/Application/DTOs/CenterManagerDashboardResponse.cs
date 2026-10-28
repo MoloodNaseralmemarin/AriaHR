@@ -7,4 +7,7 @@ public class CenterManagerDashboardResponse
     public int AbsentTodayCount { get; set; }
     public int ApprovedLeaveTodayCount { get; set; }
     public int LateArrivalsTodayCount { get; set; }
+    public int PendingLeaveRequestsCount { get; set; }
+    public int PendingAttendanceCorrectionRequestsCount { get; set; }
+    public int UnapprovedShiftsCount { get; set; }
 }
