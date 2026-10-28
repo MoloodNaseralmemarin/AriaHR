@@ -1,4 +1,5 @@
 using AriaHR.Modules.Attendance.Application.DTOs;
+using AriaHR.Modules.Attendance.Application.Exceptions;
 using AriaHR.Modules.Attendance.Application.Repositories;
 using AriaHR.Shared.Services;
 
@@ -9,15 +10,18 @@ public class CheckOutUseCase : ICheckOutUseCase
     private readonly IAttendanceRecordRepository _repository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IEmployeeLookupService _employeeLookupService;
+    private readonly ILeaveLookupService? _leaveLookupService;
 
     public CheckOutUseCase(
         IAttendanceRecordRepository repository,
         ICurrentUserService currentUserService,
-        IEmployeeLookupService employeeLookupService)
+        IEmployeeLookupService employeeLookupService,
+        ILeaveLookupService? leaveLookupService = null)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _employeeLookupService = employeeLookupService ?? throw new ArgumentNullException(nameof(employeeLookupService));
+        _leaveLookupService = leaveLookupService;
     }
 
     public async Task<AttendanceRecordDto> ExecuteAsync(CheckOutRequest request, CancellationToken cancellationToken = default)
@@ -41,13 +45,20 @@ public class CheckOutUseCase : ICheckOutUseCase
 
         var (employeeId, _) = employeeDetails.Value;
 
+        var nowUtc = DateTime.UtcNow;
+
+        if (_leaveLookupService != null && await _leaveLookupService.IsEmployeeOnApprovedLeaveAsync(employeeId, nowUtc, cancellationToken))
+        {
+            throw new LeaveRestrictionException();
+        }
+
         var activeRecord = await _repository.GetActiveCheckInByEmployeeIdAsync(employeeId, cancellationToken);
         if (activeRecord == null)
         {
             throw new InvalidOperationException("تردد ورودی فعال برای خروج یافت نشد.");
         }
 
-        activeRecord.CheckOutTime = DateTime.UtcNow;
+        activeRecord.CheckOutTime = nowUtc;
         if (request.Latitude.HasValue) activeRecord.CheckOutLatitude = request.Latitude;
         if (request.Longitude.HasValue) activeRecord.CheckOutLongitude = request.Longitude;
         if (request.Accuracy.HasValue) activeRecord.CheckOutAccuracy = request.Accuracy;

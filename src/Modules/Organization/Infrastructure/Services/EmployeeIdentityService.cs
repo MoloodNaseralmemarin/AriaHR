@@ -6,6 +6,7 @@ using AriaHR.Modules.Organization.Application.Helpers;
 using AriaHR.Modules.Organization.Application.Services;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
+using AriaHR.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -15,13 +16,16 @@ public class EmployeeIdentityService : IEmployeeIdentityService
 {
     private readonly OrganizationDbContext _organizationDbContext;
     private readonly IdentityDbContext _identityDbContext;
+    private readonly ILeaveLookupService _leaveLookupService;
 
     public EmployeeIdentityService(
         OrganizationDbContext organizationDbContext,
-        IdentityDbContext identityDbContext)
+        IdentityDbContext identityDbContext,
+        ILeaveLookupService leaveLookupService = null!)
     {
         _organizationDbContext = organizationDbContext ?? throw new ArgumentNullException(nameof(organizationDbContext));
         _identityDbContext = identityDbContext ?? throw new ArgumentNullException(nameof(identityDbContext));
+        _leaveLookupService = leaveLookupService;
     }
 
     public async Task<EmployeeDto> CreateEmployeeWithUserAsync(
@@ -322,11 +326,18 @@ public class EmployeeIdentityService : IEmployeeIdentityService
             .Where(u => userIds.Contains(u.Id) && !u.IsDeleted)
             .ToDictionaryAsync(u => u.Id, cancellationToken);
 
+        Dictionary<Guid, ApprovedLeaveInfoDto> leaveStatuses = new();
+        if (_leaveLookupService != null)
+        {
+            leaveStatuses = await _leaveLookupService.GetEmployeesApprovedLeaveStatusAsync(organizationId, DateTime.UtcNow, cancellationToken);
+        }
+
         var result = new List<EmployeeDto>();
 
         foreach (var employee in employees)
         {
             users.TryGetValue(employee.UserId, out var user);
+            leaveStatuses.TryGetValue(employee.Id, out var leaveInfo);
 
             result.Add(new EmployeeDto
             {
@@ -347,7 +358,11 @@ public class EmployeeIdentityService : IEmployeeIdentityService
                     ? $"/api/organizations/employees/{employee.Id}/profile-image"
                     : null,
                 CreatedAtUtc = employee.CreatedAtUtc,
-                CreatedByUserId = employee.CreatedByUserId
+                CreatedByUserId = employee.CreatedByUserId,
+                IsOnApprovedLeave = leaveInfo?.IsOnApprovedLeave ?? false,
+                CurrentLeaveType = leaveInfo?.LeaveType,
+                LeaveStartTime = leaveInfo?.StartTime,
+                LeaveEndTime = leaveInfo?.EndTime
             });
         }
 

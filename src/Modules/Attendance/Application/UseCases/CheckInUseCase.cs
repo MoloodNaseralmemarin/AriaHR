@@ -1,4 +1,5 @@
 using AriaHR.Modules.Attendance.Application.DTOs;
+using AriaHR.Modules.Attendance.Application.Exceptions;
 using AriaHR.Modules.Attendance.Application.Repositories;
 using AriaHR.Modules.Attendance.Domain.Entities;
 using AriaHR.Shared.Services;
@@ -11,17 +12,20 @@ public class CheckInUseCase : ICheckInUseCase
     private readonly ICurrentUserService _currentUserService;
     private readonly IEmployeeLookupService _employeeLookupService;
     private readonly IWorkLocationLookupService _workLocationLookupService;
+    private readonly ILeaveLookupService? _leaveLookupService;
 
     public CheckInUseCase(
         IAttendanceRecordRepository repository,
         ICurrentUserService currentUserService,
         IEmployeeLookupService employeeLookupService,
-        IWorkLocationLookupService workLocationLookupService)
+        IWorkLocationLookupService workLocationLookupService,
+        ILeaveLookupService? leaveLookupService = null)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _employeeLookupService = employeeLookupService ?? throw new ArgumentNullException(nameof(employeeLookupService));
         _workLocationLookupService = workLocationLookupService ?? throw new ArgumentNullException(nameof(workLocationLookupService));
+        _leaveLookupService = leaveLookupService;
     }
 
     public async Task<AttendanceRecordDto> ExecuteAsync(CheckInRequest request, CancellationToken cancellationToken = default)
@@ -44,6 +48,13 @@ public class CheckInUseCase : ICheckInUseCase
         }
 
         var (employeeId, organizationId) = employeeDetails.Value;
+
+        var nowUtc = DateTime.UtcNow;
+
+        if (_leaveLookupService != null && await _leaveLookupService.IsEmployeeOnApprovedLeaveAsync(employeeId, nowUtc, cancellationToken))
+        {
+            throw new LeaveRestrictionException();
+        }
 
         var activeCheckIn = await _repository.GetActiveCheckInByEmployeeIdAsync(employeeId, cancellationToken);
         if (activeCheckIn != null)
@@ -96,7 +107,7 @@ public class CheckInUseCase : ICheckInUseCase
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
             EmployeeId = employeeId,
-            CheckInTime = DateTime.UtcNow,
+            CheckInTime = nowUtc,
             CheckInLatitude = request.Latitude,
             CheckInLongitude = request.Longitude,
             CheckInAccuracy = request.Accuracy,

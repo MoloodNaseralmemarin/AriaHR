@@ -1,4 +1,5 @@
 using AriaHR.Modules.Attendance.Application.DTOs;
+using AriaHR.Modules.Attendance.Application.Exceptions;
 using AriaHR.Modules.Attendance.Application.UseCases;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -67,14 +68,31 @@ public class AttendanceController : ControllerBase
                 Detail = ex.Message
             });
         }
-        catch (InvalidOperationException ex)
+        catch (LeaveRestrictionException ex)
         {
             return BadRequest(new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,
+                Title = "خطای مرخصی",
+                Detail = ex.Message,
+                Extensions = { ["errorCode"] = ex.ErrorCode }
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            var problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
                 Title = "خطای کسب و کار",
                 Detail = ex.Message
-            });
+            };
+
+            if (ex.Message.Contains("مرخصی"))
+            {
+                problemDetails.Extensions["errorCode"] = LeaveRestrictionException.DefaultErrorCode;
+            }
+
+            return BadRequest(problemDetails);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -115,14 +133,31 @@ public class AttendanceController : ControllerBase
                 Detail = ex.Message
             });
         }
-        catch (InvalidOperationException ex)
+        catch (LeaveRestrictionException ex)
         {
             return BadRequest(new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,
+                Title = "خطای مرخصی",
+                Detail = ex.Message,
+                Extensions = { ["errorCode"] = ex.ErrorCode }
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            var problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
                 Title = "خطای کسب و کار",
                 Detail = ex.Message
-            });
+            };
+
+            if (ex.Message.Contains("مرخصی"))
+            {
+                problemDetails.Extensions["errorCode"] = LeaveRestrictionException.DefaultErrorCode;
+            }
+
+            return BadRequest(problemDetails);
         }
         catch (UnauthorizedAccessException ex)
         {

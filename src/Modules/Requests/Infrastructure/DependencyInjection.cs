@@ -51,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IMissionRequestRepository, MissionRequestRepository>();
         services.AddScoped<ILeaveCategoryRepository, LeaveCategoryRepository>();
         services.AddScoped<ILeaveBalanceRepository, LeaveBalanceRepository>();
+        services.AddScoped<AriaHR.Shared.Services.ILeaveLookupService, AriaHR.Modules.Requests.Infrastructure.Services.LeaveLookupService>();
 
         services.AddScoped<ICreateLeaveRequestUseCase, CreateLeaveRequestUseCase>();
         services.AddScoped<IGetMyLeaveRequestsUseCase, GetMyLeaveRequestsUseCase>();
