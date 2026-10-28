@@ -2,7 +2,7 @@ using System.Text;
 using AriaHR.Shared.Converters;
 using AriaHR.Modules.Attendance.API;
 using AriaHR.Modules.Attendance.Infrastructure;
-using AriaHR.Modules.Identity.API;
+
 using AriaHR.Modules.Scheduling.API;
 using AriaHR.Modules.Scheduling.Infrastructure;
 using AriaHR.Modules.Identity.Infrastructure;
