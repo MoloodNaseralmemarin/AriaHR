@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Domain\AriaHR.Modules.Attendance.Domain.csproj" />
+    <ProjectReference Include="..\..\..\Shared\AriaHR.Shared\AriaHR.Shared.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
