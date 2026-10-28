@@ -11,9 +11,23 @@ public sealed class AttendanceRecordConfiguration : IEntityTypeConfiguration<Att
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Method)
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(50);
 
         builder.Property(x => x.Status)
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.Property(x => x.DeviceInfo)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.IPAddress)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.Notes)
+            .HasMaxLength(1000);
+
+        builder.HasIndex(x => new { x.OrganizationId, x.EmployeeId, x.CheckInTime });
+        builder.HasIndex(x => new { x.EmployeeId, x.CheckOutTime });
     }
 }

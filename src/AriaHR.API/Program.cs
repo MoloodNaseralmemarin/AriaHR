@@ -1,5 +1,6 @@
 using System.Text;
 using AriaHR.Shared.Converters;
+using AriaHR.Modules.Attendance.API;
 using AriaHR.Modules.Attendance.Infrastructure;
 using AriaHR.Modules.Identity.API;
 using AriaHR.Modules.Scheduling.API;
@@ -29,6 +30,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddIdentityApi();
 builder.Services.AddOrganizationApi();
+builder.Services.AddAttendanceApi();
 builder.Services.AddSchedulingApi();
 builder.Services.AddRequestsApi();
 builder.Services.AddNotificationApi();

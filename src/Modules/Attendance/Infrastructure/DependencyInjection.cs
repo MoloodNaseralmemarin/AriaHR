@@ -1,4 +1,7 @@
+using AriaHR.Modules.Attendance.Application.Repositories;
+using AriaHR.Modules.Attendance.Application.UseCases;
 using AriaHR.Modules.Attendance.Infrastructure.Persistence;
+using AriaHR.Modules.Attendance.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +29,14 @@ public static class DependencyInjection
                 sqlOptions.MigrationsHistoryTable("__EFMigrationsHistory_Attendance");
             });
         });
+
+        services.AddScoped<IAttendanceRecordRepository, AttendanceRecordRepository>();
+        services.AddScoped<ICheckInUseCase, CheckInUseCase>();
+        services.AddScoped<ICheckOutUseCase, CheckOutUseCase>();
+        services.AddScoped<IGetMyAttendanceStatusUseCase, GetMyAttendanceStatusUseCase>();
+        services.AddScoped<IGetMyAttendanceHistoryUseCase, GetMyAttendanceHistoryUseCase>();
+        services.AddScoped<IGetOrganizationAttendanceUseCase, GetOrganizationAttendanceUseCase>();
+        services.AddScoped<IUpdateAttendanceStatusUseCase, UpdateAttendanceStatusUseCase>();
 
         return services;
     }
