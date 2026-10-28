@@ -18,4 +18,9 @@ public class EmployeeDto
     public string? ProfileImageUrl { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public Guid? CreatedByUserId { get; set; }
+
+    public bool IsOnApprovedLeave { get; set; }
+    public string? CurrentLeaveType { get; set; }
+    public TimeOnly? LeaveStartTime { get; set; }
+    public TimeOnly? LeaveEndTime { get; set; }
 }

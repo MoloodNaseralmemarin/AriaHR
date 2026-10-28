@@ -6,6 +6,7 @@ using AriaHR.Modules.Requests.Domain.Enums;
 using AriaHR.Modules.Requests.Infrastructure.Persistence;
 using AriaHR.Modules.Scheduling.Infrastructure.Persistence;
 using AriaHR.Shared.Services;
+using AriaHR.Shared.Utils;
 using Microsoft.EntityFrameworkCore;
 
 namespace AriaHR.Modules.Organization.Infrastructure.UseCases.GetCenterManagerDashboard;
@@ -17,19 +18,22 @@ public class GetCenterManagerDashboardUseCase : ICenterManagerDashboardUseCase
     private readonly SchedulingDbContext _schedulingDbContext;
     private readonly RequestsDbContext _requestsDbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ILeaveLookupService _leaveLookupService;
 
     public GetCenterManagerDashboardUseCase(
         OrganizationDbContext organizationDbContext,
         AttendanceDbContext attendanceDbContext,
         SchedulingDbContext schedulingDbContext,
         RequestsDbContext requestsDbContext,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        ILeaveLookupService leaveLookupService = null!)
     {
         _organizationDbContext = organizationDbContext ?? throw new ArgumentNullException(nameof(organizationDbContext));
         _attendanceDbContext = attendanceDbContext ?? throw new ArgumentNullException(nameof(attendanceDbContext));
         _schedulingDbContext = schedulingDbContext ?? throw new ArgumentNullException(nameof(schedulingDbContext));
         _requestsDbContext = requestsDbContext ?? throw new ArgumentNullException(nameof(requestsDbContext));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
+        _leaveLookupService = leaveLookupService;
     }
 
     public async Task<CenterManagerDashboardResponse> ExecuteAsync(CancellationToken cancellationToken = default)
@@ -45,7 +49,7 @@ public class GetCenterManagerDashboardUseCase : ICenterManagerDashboardUseCase
             throw new UnauthorizedAccessException("شناسه سازمان معتبر برای کاربر یافت نشد.");
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TimezoneHelper.GetIranToday();
         var todayStartUtc = today.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var tomorrowStartUtc = today.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
@@ -83,13 +87,23 @@ public class GetCenterManagerDashboardUseCase : ICenterManagerDashboardUseCase
 
         var presentTodayCount = presentEmployeeIds.Count;
 
-        // 3. Approved Leave Today: Active employees with approved leave covering today
-        var approvedLeaveEmployeeIds = await _requestsDbContext.LeaveRequests
-            .AsNoTracking()
-            .Where(l => !l.IsDeleted && l.OrganizationId == orgId && activeEmployeeIds.Contains(l.EmployeeId) && l.Status == RequestStatus.Approved && l.StartDate <= today && l.EndDate >= today)
-            .Select(l => l.EmployeeId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        // 3. Approved Leave Today: Active employees with approved leave covering today in Iran local date
+        HashSet<Guid> approvedLeaveEmployeeIds;
+        if (_leaveLookupService != null)
+        {
+            var onLeaveIds = await _leaveLookupService.GetEmployeeIdsOnApprovedLeaveTodayAsync(orgId, today, cancellationToken);
+            approvedLeaveEmployeeIds = new HashSet<Guid>(onLeaveIds.Where(id => activeEmployeeIds.Contains(id)));
+        }
+        else
+        {
+            var rawLeaveIds = await _requestsDbContext.LeaveRequests
+                .AsNoTracking()
+                .Where(l => !l.IsDeleted && l.OrganizationId == orgId && activeEmployeeIds.Contains(l.EmployeeId) && l.Status == RequestStatus.Approved && l.StartDate <= today && l.EndDate >= today)
+                .Select(l => l.EmployeeId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            approvedLeaveEmployeeIds = new HashSet<Guid>(rawLeaveIds);
+        }
 
         var approvedLeaveTodayCount = approvedLeaveEmployeeIds.Count;
 
