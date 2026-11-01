@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using AriaHR.Modules.Identity.Application.DTOs;
 using AriaHR.Modules.Identity.Application.Options;
+using AriaHR.Modules.Identity.Application.Services;
 using AriaHR.Modules.Identity.Application.UseCases;
 using AriaHR.Modules.Identity.Domain.Entities;
 using AriaHR.Modules.Identity.Infrastructure.Authentication;
@@ -89,6 +90,143 @@ public class IdentityAuthenticationTests
         Assert.NotEqual(result.OtpCode, createdOtp.CodeHash);
         // Hashing raw code must match database stored hash
         Assert.Equal(tokenService.HashToken(result.OtpCode), createdOtp.CodeHash);
+    }
+
+    private class TestAuthNotificationService : IAuthNotificationService
+    {
+        public int SendOtpCalls { get; private set; }
+        public string? LastPhoneNumber { get; private set; }
+        public string? LastCode { get; private set; }
+
+        public Task SendOtpAsync(string phoneNumber, string code, CancellationToken cancellationToken = default)
+        {
+            SendOtpCalls++;
+            LastPhoneNumber = phoneNumber;
+            LastCode = code;
+            return Task.CompletedTask;
+        }
+
+        public Task SendPasswordResetCodeAsync(string phoneNumber, string code, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SendRegistrationOtpAsync(string mobileNumber, string code, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task SendOtp_WhenUseStaticCodeIsTrue_Generates1234_AndBypassesSms()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var userRoleRepo = new UserRoleRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+        var notificationMock = new TestAuthNotificationService();
+
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Ali",
+            LastName = "Ahmadi",
+            PhoneNumber = "09121112233",
+            Email = "ali@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "Employee", Description = "Employee" };
+        var userRole = new UserRole { UserId = testUser.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(testUser);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+        await dbContext.SaveChangesAsync();
+
+        var staticOtpOptions = Options.Create(new OtpOptions
+        {
+            UseStaticCode = true,
+            StaticCode = "1234",
+            CodeLength = 4,
+            ExpirationMinutes = 2,
+            MaxAttempts = 5
+        });
+
+        var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationMock, tokenService, staticOtpOptions);
+        var verifyOtpUseCase = new VerifyOtpUseCase(userRepo, otpRepo, userRoleRepo, tokenService, staticOtpOptions);
+
+        // Act - Request OTP
+        var sendResult = await sendOtpUseCase.ExecuteAsync(new SendOtpRequest("09121112233"));
+
+        // Assert - Code is 1234 and no SMS was sent
+        Assert.True(sendResult.Success);
+        Assert.Equal("1234", sendResult.OtpCode);
+        Assert.Equal(0, notificationMock.SendOtpCalls);
+
+        // Verify OTP entity is persisted and hashed in DB
+        var persistedOtp = await dbContext.OtpCodes.FirstOrDefaultAsync(o => o.UserId == testUser.Id);
+        Assert.NotNull(persistedOtp);
+        Assert.False(persistedOtp.IsUsed);
+        Assert.Equal(tokenService.HashToken("1234"), persistedOtp.CodeHash);
+
+        // Act - User logs in with 1234
+        var verifyResult = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09121112233", "1234"));
+
+        // Assert - Login succeeds and token is generated
+        Assert.True(verifyResult.Success);
+        Assert.NotNull(verifyResult.Response);
+        Assert.False(string.IsNullOrWhiteSpace(verifyResult.Response.AccessToken));
+
+        // OTP is marked used in DB, preventing replay
+        var usedOtp = await dbContext.OtpCodes.FirstAsync(o => o.Id == persistedOtp.Id);
+        Assert.True(usedOtp.IsUsed);
+
+        // Replay attempt fails
+        var replayResult = await verifyOtpUseCase.ExecuteAsync(new VerifyOtpRequest("09121112233", "1234"));
+        Assert.False(replayResult.Success);
+        Assert.Equal("INVALID_CODE", replayResult.ErrorType);
+    }
+
+    [Fact]
+    public async Task SendOtp_WhenUseStaticCodeIsFalse_GeneratesDynamicCode_AndSendsSms()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var userRepo = new UserRepository(dbContext);
+        var otpRepo = new OtpCodeRepository(dbContext);
+        var tokenService = new JwtTokenService(_jwtOptions);
+        var notificationMock = new TestAuthNotificationService();
+
+        var testUser = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Ali",
+            LastName = "Ahmadi",
+            PhoneNumber = "09121112233",
+            Email = "ali@ariahr.com",
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        await dbContext.Users.AddAsync(testUser);
+        await dbContext.SaveChangesAsync();
+
+        var dynamicOtpOptions = Options.Create(new OtpOptions
+        {
+            UseStaticCode = false,
+            StaticCode = "1234",
+            CodeLength = 4,
+            ExpirationMinutes = 2,
+            MaxAttempts = 5
+        });
+
+        var sendOtpUseCase = new SendOtpUseCase(userRepo, otpRepo, notificationMock, tokenService, dynamicOtpOptions);
+
+        // Act
+        var result = await sendOtpUseCase.ExecuteAsync(new SendOtpRequest("09121112233"));
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.OtpCode);
+        Assert.Equal(4, result.OtpCode.Length);
+        Assert.Equal(1, notificationMock.SendOtpCalls);
+        Assert.Equal("09121112233", notificationMock.LastPhoneNumber);
+        Assert.Equal(result.OtpCode, notificationMock.LastCode);
     }
 
     [Fact]

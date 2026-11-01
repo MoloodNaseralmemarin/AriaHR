@@ -30,6 +30,7 @@
     <ProjectReference Include="..\Modules\Notification\Infrastructure\AriaHR.Modules.Notification.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Reporting\Infrastructure\AriaHR.Modules.Reporting.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Payroll\Infrastructure\AriaHR.Modules.Payroll.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\Identity\API\AriaHR.Modules.Identity.API.csproj" />
   </ItemGroup>
 
 </Project>
