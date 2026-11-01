@@ -53,9 +53,20 @@ public class SendOtpUseCase
 
         await _otpCodeRepository.InvalidateActiveCodesAsync(user.Id, cancellationToken);
 
-        int minVal = (int)Math.Pow(10, Math.Max(1, _otpOptions.CodeLength - 1));
-        int maxVal = (int)Math.Pow(10, _otpOptions.CodeLength) - 1;
-        string rawCode = Random.Shared.Next(minVal, maxVal + 1).ToString().PadLeft(_otpOptions.CodeLength, '0');
+        // Temporary testing workaround:
+        // When UseStaticCode is enabled, a fixed verification code (e.g., "1234") is generated and SMS delivery is bypassed.
+        // Set Otp:UseStaticCode to false in configuration to easily restore real dynamic OTP generation and SMS delivery.
+        string rawCode;
+        if (_otpOptions.UseStaticCode)
+        {
+            rawCode = !string.IsNullOrWhiteSpace(_otpOptions.StaticCode) ? _otpOptions.StaticCode : "1234";
+        }
+        else
+        {
+            int minVal = (int)Math.Pow(10, Math.Max(1, _otpOptions.CodeLength - 1));
+            int maxVal = (int)Math.Pow(10, _otpOptions.CodeLength) - 1;
+            rawCode = Random.Shared.Next(minVal, maxVal + 1).ToString().PadLeft(_otpOptions.CodeLength, '0');
+        }
 
         string codeHash = _tokenService.HashToken(rawCode);
 
@@ -72,7 +83,12 @@ public class SendOtpUseCase
         };
 
         await _otpCodeRepository.AddAsync(otpCode, cancellationToken);
-        await _notificationService.SendOtpAsync(normalizedPhone, rawCode, cancellationToken);
+
+        // When static OTP mode is enabled, SMS delivery is skipped.
+        if (!_otpOptions.UseStaticCode)
+        {
+            await _notificationService.SendOtpAsync(normalizedPhone, rawCode, cancellationToken);
+        }
 
         return new SendOtpResult(true, null, rawCode);
     }

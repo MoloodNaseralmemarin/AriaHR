@@ -5,6 +5,7 @@ using AriaHR.Modules.Attendance.Infrastructure;
 
 using AriaHR.Modules.Scheduling.API;
 using AriaHR.Modules.Scheduling.Infrastructure;
+using AriaHR.Modules.Identity.API;
 using AriaHR.Modules.Identity.Infrastructure;
 using AriaHR.Modules.Organization.API;
 using AriaHR.Modules.Organization.Infrastructure;
