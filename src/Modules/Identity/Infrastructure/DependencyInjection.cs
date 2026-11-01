@@ -16,21 +16,23 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddIdentityModule(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string? connectionString = null)
     {
-        return services.AddIdentityInfrastructure(configuration);
+        return services.AddIdentityInfrastructure(configuration, connectionString);
     }
 
     public static IServiceCollection AddIdentityInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string? connectionString = null)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        connectionString ??= configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                "Connection string 'DefaultConnection' was not configured.");
+                "Database connection string 'DefaultConnection' is not configured.");
         }
 
         services.AddDbContext<IdentityDbContext>(options =>

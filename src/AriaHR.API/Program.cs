@@ -130,17 +130,25 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("EmployeePolicy", policy => policy.RequireRole("Employee", "CenterManager", "SystemAdmin"));
 });
 
+// Centralized Database Connection String Validation
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException("Database connection string 'DefaultConnection' is not configured.");
+}
+
 // AriaHR Modules
-builder.Services.AddIdentityModule(builder.Configuration);
+builder.Services.AddIdentityModule(builder.Configuration, connectionString);
 
-builder.Services.AddOrganizationModule(builder.Configuration);
+builder.Services.AddOrganizationModule(builder.Configuration, connectionString);
 
-builder.Services.AddAttendanceModule(builder.Configuration);
+builder.Services.AddAttendanceModule(builder.Configuration, connectionString);
 
-builder.Services.AddSchedulingModule(builder.Configuration);
+builder.Services.AddSchedulingModule(builder.Configuration, connectionString);
 
-builder.Services.AddRequestsModule(builder.Configuration);
-builder.Services.AddNotificationModule(builder.Configuration);
+builder.Services.AddRequestsModule(builder.Configuration, connectionString);
+builder.Services.AddNotificationModule(builder.Configuration, connectionString);
 
 var app = builder.Build();
 
