@@ -17,7 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Modules\Identity\API\AriaHR.Modules.Identity.API.csproj" />
     <ProjectReference Include="..\Modules\Organization\API\AriaHR.Modules.Organization.API.csproj" />
     <ProjectReference Include="..\Modules\Identity\Infrastructure\AriaHR.Modules.Identity.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Organization\Infrastructure\AriaHR.Modules.Organization.Infrastructure.csproj" />
@@ -31,7 +30,6 @@
     <ProjectReference Include="..\Modules\Notification\Infrastructure\AriaHR.Modules.Notification.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Reporting\Infrastructure\AriaHR.Modules.Reporting.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Payroll\Infrastructure\AriaHR.Modules.Payroll.Infrastructure.csproj" />
-    <ProjectReference Include="..\Modules\Identity\API\AriaHR.Modules.Identity.API.csproj" />
   </ItemGroup>
 
 </Project>
