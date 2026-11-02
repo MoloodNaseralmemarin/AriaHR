@@ -175,4 +175,6 @@ app.MapControllers();
 await app.SeedIdentityAsync();
 await app.RepairUnlinkedCenterManagersAsync();
 
+app.MapFallbackToFile("index.html");
+
 app.Run();
