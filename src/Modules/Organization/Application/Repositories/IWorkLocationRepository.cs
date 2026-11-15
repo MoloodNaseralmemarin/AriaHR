@@ -7,6 +7,12 @@ public interface IWorkLocationRepository
     Task AddAsync(WorkLocation workLocation, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<bool> OrganizationExistsAsync(Guid organizationId, CancellationToken cancellationToken = default);
+
     Task<WorkLocation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<bool> HasWorkLocationAsync(Guid organizationId, CancellationToken cancellationToken = default);
+
+    Task<WorkLocation?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<WorkLocation>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken = default);
+
+    void Update(WorkLocation workLocation);
 }

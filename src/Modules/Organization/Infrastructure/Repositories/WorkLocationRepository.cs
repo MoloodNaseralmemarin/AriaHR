@@ -38,10 +38,23 @@ public class WorkLocationRepository : IWorkLocationRepository
             .FirstOrDefaultAsync(w => !w.IsDeleted && w.Id == id, cancellationToken);
     }
 
-    public async Task<bool> HasWorkLocationAsync(Guid organizationId, CancellationToken cancellationToken = default)
+    public async Task<WorkLocation?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.WorkLocations
+            .FirstOrDefaultAsync(w => !w.IsDeleted && w.Id == id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WorkLocation>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.WorkLocations
             .AsNoTracking()
-            .AnyAsync(w => !w.IsDeleted && w.OrganizationId == organizationId, cancellationToken);
+            .Where(w => !w.IsDeleted && w.OrganizationId == organizationId)
+            .OrderBy(w => w.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public void Update(WorkLocation workLocation)
+    {
+        _dbContext.WorkLocations.Update(workLocation);
     }
 }

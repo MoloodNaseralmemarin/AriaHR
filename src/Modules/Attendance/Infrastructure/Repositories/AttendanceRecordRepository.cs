@@ -26,6 +26,24 @@ public class AttendanceRecordRepository : IAttendanceRecordRepository
             .FirstOrDefaultAsync(r => !r.IsDeleted && r.EmployeeId == employeeId && r.CheckOutTime == null, cancellationToken);
     }
 
+    public async Task<AttendanceRecord?> GetByEmployeeAndIdempotencyKeyAsync(
+        Guid employeeId,
+        string idempotencyKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (employeeId == Guid.Empty || string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return null;
+        }
+
+        return await _dbContext.AttendanceRecords
+            .AsNoTracking()
+            .Where(r => !r.IsDeleted && r.EmployeeId == employeeId &&
+                        (r.CheckInIdempotencyKey == idempotencyKey || r.CheckOutIdempotencyKey == idempotencyKey))
+            .OrderByDescending(r => r.CheckInTime)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<AttendanceRecord>> GetByEmployeeIdAsync(
         Guid employeeId,
         DateOnly? startDate = null,

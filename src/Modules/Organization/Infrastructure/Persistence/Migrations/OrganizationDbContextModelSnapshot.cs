@@ -323,7 +323,8 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
@@ -351,7 +352,8 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -370,9 +372,11 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Code");
+
                     b.HasIndex("OrganizationId");
 
-                    b.HasIndex("WorkLocationId");
+                    b.HasIndex("WorkLocationId", "IsActive");
 
                     b.ToTable("QRCodes");
                 });
@@ -382,6 +386,10 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AllowedRadiusInMeters")
+                        .HasPrecision(8, 1)
+                        .HasColumnType("decimal(8,1)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
@@ -401,17 +409,38 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<double>("Latitude")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
 
-                    b.Property<double>("Longitude")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<double>("RadiusInMeters")
-                        .HasColumnType("float");
+                    b.Property<bool>("QrCodeEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("QrCodeIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("QrCodeLastGeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("QrCodeMode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QrRotationIntervalMinutes")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -422,6 +451,10 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("OrganizationId");
+
+                    b.HasIndex("QrCodeIdentifier")
+                        .IsUnique()
+                        .HasFilter("[QrCodeIdentifier] <> ''");
 
                     b.ToTable("WorkLocations");
                 });

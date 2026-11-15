@@ -54,7 +54,15 @@ public class LeaveAttendanceRestrictionTests
     {
         public Task<WorkLocationDetailsDto?> GetWorkLocationByIdAsync(Guid workLocationId, CancellationToken cancellationToken = default) => Task.FromResult<WorkLocationDetailsDto?>(null);
         public Task<WorkLocationDetailsDto?> GetWorkLocationForOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default) => Task.FromResult<WorkLocationDetailsDto?>(null);
-        public Task<QrCodeValidationResultDto> ValidateQrCodeAsync(string qrCodeToken, Guid? expectedOrganizationId = null, CancellationToken cancellationToken = default) => Task.FromResult(new QrCodeValidationResultDto(true, Guid.NewGuid(), Guid.NewGuid(), expectedOrganizationId, null));
+        public Task<QrCodeValidationResultDto> ValidateQrCodeAsync(string qrCodeToken, Guid? expectedOrganizationId = null, DateTime? nowUtc = null, CancellationToken cancellationToken = default) => Task.FromResult(new QrCodeValidationResultDto(true, null, Guid.NewGuid(), Guid.NewGuid(), expectedOrganizationId, "Dynamic", null));
+    }
+
+    private class FakeScanAttendanceUseCase : IScanAttendanceUseCase
+    {
+        public Task<AttendanceScanResponse> ExecuteAsync(ScanAttendanceRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(AttendanceScanResponse.Fail("QR_CODE_INVALID", "کد QR نامعتبر است."));
+        }
     }
 
     private class FakeLeaveLookupService : ILeaveLookupService
@@ -145,7 +153,8 @@ public class LeaveAttendanceRestrictionTests
             statusUseCase,
             historyUseCase,
             orgUseCase,
-            updateUseCase);
+            updateUseCase,
+            new FakeScanAttendanceUseCase());
 
         // Act
         var result = await controller.CheckIn(new CheckInRequest(), CancellationToken.None);

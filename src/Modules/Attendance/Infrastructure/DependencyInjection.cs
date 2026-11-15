@@ -1,3 +1,4 @@
+using AriaHR.Modules.Attendance.Application.Options;
 using AriaHR.Modules.Attendance.Application.Repositories;
 using AriaHR.Modules.Attendance.Application.UseCases;
 using AriaHR.Modules.Attendance.Infrastructure.Persistence;
@@ -31,6 +32,9 @@ public static class DependencyInjection
             });
         });
 
+        services.Configure<GpsValidationOptions>(configuration.GetSection(GpsValidationOptions.SectionName));
+        services.Configure<AttendancePolicyOptions>(configuration.GetSection(AttendancePolicyOptions.SectionName));
+
         services.AddScoped<IAttendanceRecordRepository, AttendanceRecordRepository>();
         services.AddScoped<ICheckInUseCase, CheckInUseCase>();
         services.AddScoped<ICheckOutUseCase, CheckOutUseCase>();
@@ -38,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IGetMyAttendanceHistoryUseCase, GetMyAttendanceHistoryUseCase>();
         services.AddScoped<IGetOrganizationAttendanceUseCase, GetOrganizationAttendanceUseCase>();
         services.AddScoped<IUpdateAttendanceStatusUseCase, UpdateAttendanceStatusUseCase>();
+        services.AddScoped<IScanAttendanceUseCase, ScanAttendanceUseCase>();
 
         return services;
     }

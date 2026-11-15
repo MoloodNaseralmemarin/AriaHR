@@ -7,6 +7,8 @@ using AriaHR.Modules.Scheduling.Application.UseCases.GetShiftById;
 using AriaHR.Modules.Scheduling.Application.UseCases.GetShiftCalendar;
 using AriaHR.Modules.Scheduling.Infrastructure.Persistence;
 using AriaHR.Modules.Scheduling.Infrastructure.Repositories;
+using AriaHR.Modules.Scheduling.Infrastructure.Services;
+using AriaHR.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +45,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IShiftRepository, ShiftRepository>();
         services.AddScoped<IShiftAssignmentRepository, ShiftAssignmentRepository>();
+        services.AddScoped<IShiftLookupService, ShiftLookupService>();
 
         services.AddScoped<IDefineShiftUseCase, DefineShiftUseCase>();
         services.AddScoped<IGetActiveShiftsUseCase, GetActiveShiftsUseCase>();

@@ -1,3 +1,4 @@
+using AriaHR.Modules.Attendance.Application;
 using AriaHR.Modules.Attendance.Application.DTOs;
 using AriaHR.Modules.Attendance.Application.Exceptions;
 using AriaHR.Modules.Attendance.Application.UseCases;
@@ -18,6 +19,7 @@ public class AttendanceController : ControllerBase
     private readonly IGetMyAttendanceHistoryUseCase _getMyAttendanceHistoryUseCase;
     private readonly IGetOrganizationAttendanceUseCase _getOrganizationAttendanceUseCase;
     private readonly IUpdateAttendanceStatusUseCase _updateAttendanceStatusUseCase;
+    private readonly IScanAttendanceUseCase _scanAttendanceUseCase;
 
     public AttendanceController(
         ICheckInUseCase checkInUseCase,
@@ -25,7 +27,8 @@ public class AttendanceController : ControllerBase
         IGetMyAttendanceStatusUseCase getMyAttendanceStatusUseCase,
         IGetMyAttendanceHistoryUseCase getMyAttendanceHistoryUseCase,
         IGetOrganizationAttendanceUseCase getOrganizationAttendanceUseCase,
-        IUpdateAttendanceStatusUseCase updateAttendanceStatusUseCase)
+        IUpdateAttendanceStatusUseCase updateAttendanceStatusUseCase,
+        IScanAttendanceUseCase scanAttendanceUseCase)
     {
         _checkInUseCase = checkInUseCase ?? throw new ArgumentNullException(nameof(checkInUseCase));
         _checkOutUseCase = checkOutUseCase ?? throw new ArgumentNullException(nameof(checkOutUseCase));
@@ -33,6 +36,52 @@ public class AttendanceController : ControllerBase
         _getMyAttendanceHistoryUseCase = getMyAttendanceHistoryUseCase ?? throw new ArgumentNullException(nameof(getMyAttendanceHistoryUseCase));
         _getOrganizationAttendanceUseCase = getOrganizationAttendanceUseCase ?? throw new ArgumentNullException(nameof(getOrganizationAttendanceUseCase));
         _updateAttendanceStatusUseCase = updateAttendanceStatusUseCase ?? throw new ArgumentNullException(nameof(updateAttendanceStatusUseCase));
+        _scanAttendanceUseCase = scanAttendanceUseCase ?? throw new ArgumentNullException(nameof(scanAttendanceUseCase));
+    }
+
+    [HttpPost("scan")]
+    [ProducesResponseType(typeof(AttendanceScanResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AttendanceScanResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(AttendanceScanResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(AttendanceScanResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(AttendanceScanResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(AttendanceScanResponse), StatusCodes.Status409Conflict)]
+    /// <summary>
+    /// Registers check-in or check-out from a work location QR code plus the employee's GPS reading.
+    /// Employee identity is resolved from JWT claims; coordinates, radius and shift rules are validated server-side.
+    /// </summary>
+    public async Task<IActionResult> Scan(
+        [FromBody] ScanAttendanceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest(AttendanceScanResponse.Fail(
+                AttendanceErrorCodes.InvalidRequest,
+                "درخواست ارسال شده معتبر نمی‌باشد."));
+        }
+
+        try
+        {
+            var result = await _scanAttendanceUseCase.ExecuteAsync(request, cancellationToken);
+            return Ok(result);
+        }
+        catch (AttendanceScanException ex)
+        {
+            return StatusCode(ex.StatusCode, AttendanceScanResponse.Fail(ex.Code, ex.Message, ex.Data));
+        }
+        catch (LeaveRestrictionException ex)
+        {
+            return BadRequest(AttendanceScanResponse.Fail(ex.ErrorCode, ex.Message));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(AttendanceScanResponse.Fail(AttendanceErrorCodes.EmployeeNotAuthorized, ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(AttendanceScanResponse.Fail(AttendanceErrorCodes.InvalidRequest, ex.Message));
+        }
     }
 
     [HttpPost("check-in")]

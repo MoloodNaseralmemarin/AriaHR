@@ -66,21 +66,21 @@ public class AttendanceUseCaseTests
 
         public Task<WorkLocationDetailsDto?> GetWorkLocationByIdAsync(Guid workLocationId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<WorkLocationDetailsDto?>(new WorkLocationDetailsDto(workLocationId, Guid.NewGuid(), 35.6892, 51.3890, 200, true));
+            return Task.FromResult<WorkLocationDetailsDto?>(new WorkLocationDetailsDto(workLocationId, Guid.NewGuid(), "Main Site", 35.6892m, 51.3890m, 200m, true, true, 5));
         }
 
         public Task<WorkLocationDetailsDto?> GetWorkLocationForOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<WorkLocationDetailsDto?>(new WorkLocationDetailsDto(Guid.NewGuid(), organizationId, 35.6892, 51.3890, 200, true));
+            return Task.FromResult<WorkLocationDetailsDto?>(new WorkLocationDetailsDto(Guid.NewGuid(), organizationId, "Main Site", 35.6892m, 51.3890m, 200m, true, true, 5));
         }
 
-        public Task<QrCodeValidationResultDto> ValidateQrCodeAsync(string qrCodeToken, Guid? expectedOrganizationId = null, CancellationToken cancellationToken = default)
+        public Task<QrCodeValidationResultDto> ValidateQrCodeAsync(string qrCodeToken, Guid? expectedOrganizationId = null, DateTime? nowUtc = null, CancellationToken cancellationToken = default)
         {
             if (!IsQrValid)
             {
-                return Task.FromResult(new QrCodeValidationResultDto(false, null, null, null, QrErrorMessage ?? "کد QR نامعتبر است."));
+                return Task.FromResult(new QrCodeValidationResultDto(false, "QR_CODE_INVALID", null, null, null, null, QrErrorMessage ?? "کد QR نامعتبر است."));
             }
-            return Task.FromResult(new QrCodeValidationResultDto(true, QrCodeId, WorkLocationId, expectedOrganizationId, null));
+            return Task.FromResult(new QrCodeValidationResultDto(true, null, QrCodeId, WorkLocationId, expectedOrganizationId, "Dynamic", null));
         }
     }
 

@@ -1,16 +1,25 @@
+using System.Security.Cryptography;
 using AriaHR.Modules.Organization.Application.DTOs;
+using AriaHR.Modules.Organization.Application.Options;
 using AriaHR.Modules.Organization.Application.Repositories;
+using AriaHR.Modules.Organization.Application.Validators;
 using AriaHR.Modules.Organization.Domain.Entities;
+using AriaHR.Modules.Organization.Domain.Enums;
+using Microsoft.Extensions.Options;
 
 namespace AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
 
 public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
 {
     private readonly IWorkLocationRepository _workLocationRepository;
+    private readonly QrCodeOptions _options;
 
-    public CreateWorkLocationUseCase(IWorkLocationRepository workLocationRepository)
+    public CreateWorkLocationUseCase(
+        IWorkLocationRepository workLocationRepository,
+        IOptions<QrCodeOptions>? options = null)
     {
         _workLocationRepository = workLocationRepository ?? throw new ArgumentNullException(nameof(workLocationRepository));
+        _options = options?.Value ?? new QrCodeOptions();
     }
 
     public async Task<WorkLocationDto> ExecuteAsync(
@@ -29,20 +38,16 @@ public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
             throw new ArgumentException("شناسه سازمان الزامی است.");
         }
 
-        if (request.Latitude < -90 || request.Latitude > 90)
+        string name = WorkLocationInputValidator.ValidateName(request.Name);
+        WorkLocationInputValidator.ValidateCoordinates(request.Latitude, request.Longitude);
+        WorkLocationInputValidator.ValidateRadius(request.AllowedRadiusInMeters, _options);
+
+        if (!Enum.IsDefined(typeof(QrCodeMode), request.QrCodeMode))
         {
-            throw new ArgumentException("عرض جغرافیایی باید بین ۹۰- و ۹۰ باشد.");
+            throw new ArgumentException("حالت کد کیوآر معتبر نمی‌باشد.");
         }
 
-        if (request.Longitude < -180 || request.Longitude > 180)
-        {
-            throw new ArgumentException("طول جغرافیایی باید بین ۱۸۰- و ۱۸۰ باشد.");
-        }
-
-        if (request.RadiusInMeters <= 0)
-        {
-            throw new ArgumentException("شعاع محدوده باید بزرگتر از صفر باشد.");
-        }
+        int rotationInterval = WorkLocationInputValidator.ValidateRotationInterval(request.QrRotationIntervalMinutes, _options);
 
         var organizationExists = await _workLocationRepository.OrganizationExistsAsync(organizationId, cancellationToken);
         if (!organizationExists)
@@ -50,37 +55,34 @@ public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
             throw new ArgumentException("سازمان مورد نظر یافت نشد.");
         }
 
-        var hasWorkLocation = await _workLocationRepository.HasWorkLocationAsync(organizationId, cancellationToken);
-        if (hasWorkLocation)
-        {
-            throw new InvalidOperationException("برای این سازمان قبلاً محل کار ثبت شده است.");
-        }
+        DateTime nowUtc = DateTime.UtcNow;
 
         var workLocation = new WorkLocation
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
+            Name = name,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
-            RadiusInMeters = request.RadiusInMeters,
+            AllowedRadiusInMeters = request.AllowedRadiusInMeters,
             IsActive = request.IsActive,
-            CreatedAtUtc = DateTime.UtcNow,
-            CreatedByUserId = createdByUserId
+            QrCodeMode = request.QrCodeMode,
+            QrCodeIdentifier = GenerateIdentifier(),
+            QrCodeEnabled = request.IsActive && request.QrCodeEnabled,
+            QrRotationIntervalMinutes = rotationInterval,
+            QrCodeLastGeneratedAtUtc = request.IsActive && request.QrCodeEnabled ? nowUtc : null,
+            CreatedAtUtc = nowUtc,
+            CreatedByUserId = createdByUserId == Guid.Empty ? null : createdByUserId
         };
 
         await _workLocationRepository.AddAsync(workLocation, cancellationToken);
         await _workLocationRepository.SaveChangesAsync(cancellationToken);
 
-        return new WorkLocationDto
-        {
-            Id = workLocation.Id,
-            OrganizationId = workLocation.OrganizationId,
-            Latitude = workLocation.Latitude,
-            Longitude = workLocation.Longitude,
-            RadiusInMeters = workLocation.RadiusInMeters,
-            IsActive = workLocation.IsActive,
-            CreatedAtUtc = workLocation.CreatedAtUtc,
-            CreatedByUserId = workLocation.CreatedByUserId
-        };
+        return WorkLocationDtoMapper.Map(workLocation);
+    }
+
+    internal static string GenerateIdentifier()
+    {
+        return Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
     }
 }

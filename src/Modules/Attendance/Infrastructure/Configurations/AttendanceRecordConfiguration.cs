@@ -27,7 +27,21 @@ public sealed class AttendanceRecordConfiguration : IEntityTypeConfiguration<Att
         builder.Property(x => x.Notes)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.CheckInIdempotencyKey)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.CheckOutIdempotencyKey)
+            .HasMaxLength(100);
+
         builder.HasIndex(x => new { x.OrganizationId, x.EmployeeId, x.CheckInTime });
         builder.HasIndex(x => new { x.EmployeeId, x.CheckOutTime });
+
+        builder.HasIndex(x => new { x.EmployeeId, x.CheckInIdempotencyKey })
+            .IsUnique()
+            .HasFilter("[CheckInIdempotencyKey] IS NOT NULL");
+
+        builder.HasIndex(x => new { x.EmployeeId, x.CheckOutIdempotencyKey })
+            .IsUnique()
+            .HasFilter("[CheckOutIdempotencyKey] IS NOT NULL");
     }
 }

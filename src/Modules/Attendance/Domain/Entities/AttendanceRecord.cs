@@ -17,6 +17,12 @@ public class AttendanceRecord : BaseEntity
     public double? CheckOutLongitude { get; set; }
     public double? CheckInAccuracy { get; set; }
     public double? CheckOutAccuracy { get; set; }
+    public double? CheckInDistanceInMeters { get; set; }
+    public double? CheckOutDistanceInMeters { get; set; }
+    public DateTime? CheckInLocationTimestampUtc { get; set; }
+    public DateTime? CheckOutLocationTimestampUtc { get; set; }
+    public string? CheckInIdempotencyKey { get; set; }
+    public string? CheckOutIdempotencyKey { get; set; }
     public Guid? WorkLocationId { get; set; }
     public Guid? QRCodeId { get; set; }
     public string Method { get; set; } = string.Empty;

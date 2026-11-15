@@ -70,7 +70,7 @@ public class CheckInUseCase : ICheckInUseCase
         if (!string.IsNullOrWhiteSpace(request.QRCodeToken) || string.Equals(method, "QRCode", StringComparison.OrdinalIgnoreCase))
         {
             method = "QRCode";
-            var qrResult = await _workLocationLookupService.ValidateQrCodeAsync(request.QRCodeToken ?? string.Empty, organizationId, cancellationToken);
+            var qrResult = await _workLocationLookupService.ValidateQrCodeAsync(request.QRCodeToken ?? string.Empty, organizationId, null, cancellationToken);
             if (!qrResult.IsValid)
             {
                 throw new ArgumentException(qrResult.ErrorMessage ?? "کد QR نامعتبر است.");
@@ -78,7 +78,23 @@ public class CheckInUseCase : ICheckInUseCase
 
             qrCodeId = qrResult.QRCodeId;
             workLocationId = qrResult.WorkLocationId;
-            isWithinGeofence = true;
+
+            // The legacy check-in endpoint keeps working, but it must not claim physical presence
+            // without a server-side geofence evaluation. The canonical flow is POST /api/attendance/scan.
+            if (request.Latitude.HasValue && request.Longitude.HasValue && workLocationId.HasValue)
+            {
+                var qrWorkLocation = await _workLocationLookupService.GetWorkLocationByIdAsync(workLocationId.Value, cancellationToken);
+                if (qrWorkLocation != null && qrWorkLocation.IsActive)
+                {
+                    double qrDistance = CalculateDistanceInMeters(
+                        request.Latitude.Value,
+                        request.Longitude.Value,
+                        (double)qrWorkLocation.Latitude,
+                        (double)qrWorkLocation.Longitude);
+
+                    isWithinGeofence = qrDistance <= (double)qrWorkLocation.AllowedRadiusInMeters;
+                }
+            }
         }
         else if (request.Latitude.HasValue && request.Longitude.HasValue)
         {
@@ -92,10 +108,10 @@ public class CheckInUseCase : ICheckInUseCase
                 double distance = CalculateDistanceInMeters(
                     request.Latitude.Value,
                     request.Longitude.Value,
-                    workLocation.Latitude,
-                    workLocation.Longitude);
+                    (double)workLocation.Latitude,
+                    (double)workLocation.Longitude);
 
-                if (distance <= workLocation.RadiusInMeters)
+                if (distance <= (double)workLocation.AllowedRadiusInMeters)
                 {
                     isWithinGeofence = true;
                 }
@@ -161,6 +177,10 @@ public class CheckInUseCase : ICheckInUseCase
             CheckOutLongitude = r.CheckOutLongitude,
             CheckInAccuracy = r.CheckInAccuracy,
             CheckOutAccuracy = r.CheckOutAccuracy,
+            CheckInDistanceInMeters = r.CheckInDistanceInMeters,
+            CheckOutDistanceInMeters = r.CheckOutDistanceInMeters,
+            CheckInLocationTimestampUtc = r.CheckInLocationTimestampUtc,
+            CheckOutLocationTimestampUtc = r.CheckOutLocationTimestampUtc,
             WorkLocationId = r.WorkLocationId,
             QRCodeId = r.QRCodeId,
             Method = r.Method,
