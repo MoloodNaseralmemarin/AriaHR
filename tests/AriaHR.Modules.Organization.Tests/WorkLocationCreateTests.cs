@@ -4,7 +4,11 @@ using AriaHR.Modules.Organization.API.Controllers;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.Options;
 using AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
+using AriaHR.Modules.Organization.Application.Services;
 using AriaHR.Modules.Organization.Application.UseCases.GenerateQrCode;
+using AriaHR.Modules.Organization.Application.UseCases.GetQrCode;
+using AriaHR.Modules.Organization.Application.UseCases.GetQrCodeSettings;
+using AriaHR.Modules.Organization.Application.UseCases.UpdateQrCodeSettings;
 using AriaHR.Modules.Organization.Domain.Entities;
 using AriaHR.Modules.Organization.Domain.Enums;
 using AriaHR.Modules.Organization.Infrastructure.Persistence;
@@ -21,6 +25,25 @@ namespace AriaHR.Modules.Organization.Tests;
 
 public class WorkLocationCreateTests
 {
+    private static WorkLocationsController CreateWorkLocationsController(
+        OrganizationDbContext db,
+        ICreateWorkLocationUseCase createUseCase,
+        ICurrentUserService currentUserService)
+    {
+        var repository = new QrCodeRepository(db);
+        var tokenService = new QrCodeTokenService();
+        var options = Microsoft.Extensions.Options.Options.Create(new QrCodeOptions());
+        var qrCodeService = new QrCodeService(repository, tokenService, options);
+
+        return new WorkLocationsController(
+            createUseCase,
+            new GenerateQrCodeUseCase(qrCodeService),
+            new GetQrCodeUseCase(qrCodeService),
+            new GetQrCodeSettingsUseCase(repository, qrCodeService),
+            new UpdateQrCodeSettingsUseCase(repository, qrCodeService, tokenService, options),
+            currentUserService);
+    }
+
     private OrganizationDbContext GetInMemoryDbContext()
     {
         string dbName = Guid.NewGuid().ToString();
@@ -229,9 +252,6 @@ public class WorkLocationCreateTests
 
         var repo = new WorkLocationRepository(db);
         var useCase = new CreateWorkLocationUseCase(repo);
-        var qrRepo = new QrCodeRepository(db);
-        var qrUseCase = new GenerateQrCodeUseCase(qrRepo, Microsoft.Extensions.Options.Options.Create(new QrCodeOptions()));
-
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
         var claims = new[]
@@ -245,10 +265,8 @@ public class WorkLocationCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new WorkLocationsController(useCase, qrUseCase, currentUserService)
-        {
-            ControllerContext = new ControllerContext { HttpContext = httpContext }
-        };
+        var controller = CreateWorkLocationsController(db, useCase, currentUserService);
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
         var request = new CreateWorkLocationRequest
         {
@@ -278,9 +296,6 @@ public class WorkLocationCreateTests
 
         var repo = new WorkLocationRepository(db);
         var useCase = new CreateWorkLocationUseCase(repo);
-        var qrRepo = new QrCodeRepository(db);
-        var qrUseCase = new GenerateQrCodeUseCase(qrRepo, Microsoft.Extensions.Options.Options.Create(new QrCodeOptions()));
-
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
         var claims = new[]
@@ -294,10 +309,8 @@ public class WorkLocationCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new WorkLocationsController(useCase, qrUseCase, currentUserService)
-        {
-            ControllerContext = new ControllerContext { HttpContext = httpContext }
-        };
+        var controller = CreateWorkLocationsController(db, useCase, currentUserService);
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
         var request = new CreateWorkLocationRequest
         {
@@ -332,9 +345,6 @@ public class WorkLocationCreateTests
 
         var repo = new WorkLocationRepository(db);
         var useCase = new CreateWorkLocationUseCase(repo);
-        var qrRepo = new QrCodeRepository(db);
-        var qrUseCase = new GenerateQrCodeUseCase(qrRepo, Microsoft.Extensions.Options.Options.Create(new QrCodeOptions()));
-
         var currentUserId = Guid.NewGuid();
         var httpContext = new DefaultHttpContext();
         var claims = new[]
@@ -347,10 +357,8 @@ public class WorkLocationCreateTests
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
         var currentUserService = new CurrentUserService(httpContextAccessor);
 
-        var controller = new WorkLocationsController(useCase, qrUseCase, currentUserService)
-        {
-            ControllerContext = new ControllerContext { HttpContext = httpContext }
-        };
+        var controller = CreateWorkLocationsController(db, useCase, currentUserService);
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
         var request = new CreateWorkLocationRequest
         {

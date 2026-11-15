@@ -10,6 +10,18 @@ public sealed class WorkLocationConfiguration : IEntityTypeConfiguration<WorkLoc
     {
         builder.HasKey(x => x.Id);
 
+        builder.Property(x => x.QrCodeReference)
+            .HasMaxLength(64);
+
+        builder.Property(x => x.QrCodeSecret)
+            .HasMaxLength(128);
+
+        builder.HasIndex(x => x.QrCodeReference)
+            .IsUnique()
+            .HasFilter("[QrCodeReference] IS NOT NULL");
+
+        builder.HasIndex(x => x.OrganizationId);
+
         builder.HasMany(x => x.QRCodes)
             .WithOne(x => x.WorkLocation)
             .HasForeignKey(x => x.WorkLocationId)

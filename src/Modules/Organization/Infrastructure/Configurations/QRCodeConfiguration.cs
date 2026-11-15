@@ -11,9 +11,14 @@ public sealed class QRCodeConfiguration : IEntityTypeConfiguration<QRCode>
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Code)
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(256);
 
         builder.Property(x => x.Title)
             .IsRequired();
+
+        builder.HasIndex(x => x.Code);
+
+        builder.HasIndex(x => new { x.WorkLocationId, x.IsActive });
     }
 }

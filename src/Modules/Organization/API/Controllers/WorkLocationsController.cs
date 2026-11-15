@@ -2,6 +2,9 @@ using System.Security.Claims;
 using AriaHR.Modules.Organization.Application.DTOs;
 using AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
 using AriaHR.Modules.Organization.Application.UseCases.GenerateQrCode;
+using AriaHR.Modules.Organization.Application.UseCases.GetQrCode;
+using AriaHR.Modules.Organization.Application.UseCases.GetQrCodeSettings;
+using AriaHR.Modules.Organization.Application.UseCases.UpdateQrCodeSettings;
 using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -16,15 +19,24 @@ public class WorkLocationsController : ControllerBase
 {
     private readonly ICreateWorkLocationUseCase _createWorkLocationUseCase;
     private readonly IGenerateQrCodeUseCase _generateQrCodeUseCase;
+    private readonly IGetQrCodeUseCase _getQrCodeUseCase;
+    private readonly IGetQrCodeSettingsUseCase _getQrCodeSettingsUseCase;
+    private readonly IUpdateQrCodeSettingsUseCase _updateQrCodeSettingsUseCase;
     private readonly ICurrentUserService _currentUserService;
 
     public WorkLocationsController(
         ICreateWorkLocationUseCase createWorkLocationUseCase,
         IGenerateQrCodeUseCase generateQrCodeUseCase,
+        IGetQrCodeUseCase getQrCodeUseCase,
+        IGetQrCodeSettingsUseCase getQrCodeSettingsUseCase,
+        IUpdateQrCodeSettingsUseCase updateQrCodeSettingsUseCase,
         ICurrentUserService currentUserService)
     {
         _createWorkLocationUseCase = createWorkLocationUseCase ?? throw new ArgumentNullException(nameof(createWorkLocationUseCase));
         _generateQrCodeUseCase = generateQrCodeUseCase ?? throw new ArgumentNullException(nameof(generateQrCodeUseCase));
+        _getQrCodeUseCase = getQrCodeUseCase ?? throw new ArgumentNullException(nameof(getQrCodeUseCase));
+        _getQrCodeSettingsUseCase = getQrCodeSettingsUseCase ?? throw new ArgumentNullException(nameof(getQrCodeSettingsUseCase));
+        _updateQrCodeSettingsUseCase = updateQrCodeSettingsUseCase ?? throw new ArgumentNullException(nameof(updateQrCodeSettingsUseCase));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
     }
 
@@ -145,27 +157,15 @@ public class WorkLocationsController : ControllerBase
             });
         }
 
-        Guid currentUserId = _currentUserService.UserId;
-        if (currentUserId == Guid.Empty)
+        if (!TryResolveCurrentUserId(out Guid currentUserId, out IActionResult? userError))
         {
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out currentUserId))
-            {
-                return Unauthorized();
-            }
+            return userError!;
         }
 
-        Guid? targetOrganizationId = null;
-
-        if (!_currentUserService.IsInRole("SystemAdmin"))
+        Guid? targetOrganizationId = ResolveOrganizationScope(out IActionResult? organizationError);
+        if (organizationError != null)
         {
-            var userOrgId = _currentUserService.OrganizationId;
-            if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
-            {
-                return Forbid();
-            }
-
-            targetOrganizationId = userOrgId.Value;
+            return organizationError;
         }
 
         try
@@ -184,30 +184,218 @@ public class WorkLocationsController : ControllerBase
         }
         catch (KeyNotFoundException ex)
         {
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = "یافت نشد",
-                Detail = ex.Message
-            });
+            return NotFoundProblem(ex.Message);
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "ورودی نامعتبر",
-                Detail = ex.Message
-            });
+            return BadRequestProblem("ورودی نامعتبر", ex.Message);
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "خطای کسب و کار",
-                Detail = ex.Message
-            });
+            return BadRequestProblem("خطای کسب و کار", ex.Message);
         }
+    }
+
+    [HttpGet("{workLocationId}/qr")]
+    [ProducesResponseType(typeof(QrCodeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetQrCode(
+        [FromRoute] Guid workLocationId,
+        CancellationToken cancellationToken)
+    {
+        if (workLocationId == Guid.Empty)
+        {
+            return BadRequestProblem("ورودی نامعتبر", "شناسه محل کار الزامی است.");
+        }
+
+        Guid? targetOrganizationId = ResolveOrganizationScope(out IActionResult? organizationError);
+        if (organizationError != null)
+        {
+            return organizationError;
+        }
+
+        try
+        {
+            var result = await _getQrCodeUseCase.ExecuteAsync(workLocationId, targetOrganizationId, cancellationToken);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFoundProblem(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequestProblem("ورودی نامعتبر", ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequestProblem("خطای کسب و کار", ex.Message);
+        }
+    }
+
+    [HttpGet("{workLocationId}/qr-settings")]
+    [ProducesResponseType(typeof(QrCodeSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetQrCodeSettings(
+        [FromRoute] Guid workLocationId,
+        CancellationToken cancellationToken)
+    {
+        if (workLocationId == Guid.Empty)
+        {
+            return BadRequestProblem("ورودی نامعتبر", "شناسه محل کار الزامی است.");
+        }
+
+        Guid? targetOrganizationId = ResolveOrganizationScope(out IActionResult? organizationError);
+        if (organizationError != null)
+        {
+            return organizationError;
+        }
+
+        try
+        {
+            var result = await _getQrCodeSettingsUseCase.ExecuteAsync(workLocationId, targetOrganizationId, cancellationToken);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFoundProblem(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequestProblem("ورودی نامعتبر", ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequestProblem("خطای کسب و کار", ex.Message);
+        }
+    }
+
+    [HttpPut("{workLocationId}/qr-settings")]
+    [ProducesResponseType(typeof(QrCodeSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateQrCodeSettings(
+        [FromRoute] Guid workLocationId,
+        [FromBody] UpdateQrCodeSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (workLocationId == Guid.Empty || request == null)
+        {
+            return BadRequestProblem("ورودی نامعتبر", "شناسه محل کار و تنظیمات کیوآر الزامی است.");
+        }
+
+        if (!TryResolveCurrentUserId(out Guid currentUserId, out IActionResult? userError))
+        {
+            return userError!;
+        }
+
+        Guid? targetOrganizationId = ResolveOrganizationScope(out IActionResult? organizationError);
+        if (organizationError != null)
+        {
+            return organizationError;
+        }
+
+        try
+        {
+            var result = await _updateQrCodeSettingsUseCase.ExecuteAsync(
+                workLocationId,
+                request,
+                currentUserId,
+                targetOrganizationId,
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFoundProblem(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequestProblem("ورودی نامعتبر", ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequestProblem("خطای کسب و کار", ex.Message);
+        }
+    }
+
+    private bool TryResolveCurrentUserId(out Guid userId, out IActionResult? errorResult)
+    {
+        errorResult = null;
+        userId = _currentUserService.UserId;
+
+        if (userId != Guid.Empty)
+        {
+            return true;
+        }
+
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out userId))
+        {
+            errorResult = Unauthorized();
+            return false;
+        }
+
+        return true;
+    }
+
+    private Guid? ResolveOrganizationScope(out IActionResult? errorResult)
+    {
+        errorResult = null;
+
+        if (_currentUserService.IsInRole("SystemAdmin"))
+        {
+            return null;
+        }
+
+        var userOrgId = _currentUserService.OrganizationId;
+        if (!userOrgId.HasValue || userOrgId.Value == Guid.Empty)
+        {
+            errorResult = Forbid();
+            return null;
+        }
+
+        return userOrgId.Value;
+    }
+
+    private IActionResult NotFoundProblem(string detail)
+    {
+        return NotFound(new ProblemDetails
+        {
+            Status = StatusCodes.Status404NotFound,
+            Title = "یافت نشد",
+            Detail = detail
+        });
+    }
+
+    private IActionResult BadRequestProblem(string title, string detail)
+    {
+        return BadRequest(new ProblemDetails
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = title,
+            Detail = detail
+        });
     }
 }

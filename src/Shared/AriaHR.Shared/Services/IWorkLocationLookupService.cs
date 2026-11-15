@@ -6,7 +6,10 @@ public record WorkLocationDetailsDto(
     double Latitude,
     double Longitude,
     double RadiusInMeters,
-    bool IsActive
+    bool IsActive,
+    bool QrCodeVerificationEnabled = true,
+    string QrCodeMode = "Dynamic",
+    int QrCodeRotationMinutes = 5
 );
 
 public record QrCodeValidationResultDto(

@@ -5,6 +5,9 @@ using AriaHR.Modules.Organization.Application.UseCases.CreateEmployee;
 using AriaHR.Modules.Organization.Application.UseCases.CreateOrganization;
 using AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
 using AriaHR.Modules.Organization.Application.UseCases.GenerateQrCode;
+using AriaHR.Modules.Organization.Application.UseCases.GetQrCode;
+using AriaHR.Modules.Organization.Application.UseCases.GetQrCodeSettings;
+using AriaHR.Modules.Organization.Application.UseCases.UpdateQrCodeSettings;
 using AriaHR.Modules.Organization.Application.UseCases.GetDashboardSummary;
 using AriaHR.Modules.Organization.Application.UseCases.GetEmployees;
 using AriaHR.Modules.Organization.Application.UseCases.GetOrganizationCenters;
@@ -25,6 +28,7 @@ using AriaHR.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AriaHR.Modules.Organization.Infrastructure;
 
@@ -53,6 +57,9 @@ public static class DependencyInjection
 
         services.Configure<QrCodeOptions>(configuration.GetSection(QrCodeOptions.SectionName));
 
+        services.AddSingleton<IQrCodeTokenService, QrCodeTokenService>();
+        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+
         services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IBranchRepository, BranchRepository>();
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
@@ -67,7 +74,11 @@ public static class DependencyInjection
         services.AddScoped<ICreateEmployeeUseCase, CreateEmployeeUseCase>();
         services.AddScoped<IGetEmployeesUseCase, GetEmployeesUseCase>();
         services.AddScoped<ICreateWorkLocationUseCase, CreateWorkLocationUseCase>();
+        services.AddScoped<IQrCodeService, QrCodeService>();
         services.AddScoped<IGenerateQrCodeUseCase, GenerateQrCodeUseCase>();
+        services.AddScoped<IGetQrCodeUseCase, GetQrCodeUseCase>();
+        services.AddScoped<IGetQrCodeSettingsUseCase, GetQrCodeSettingsUseCase>();
+        services.AddScoped<IUpdateQrCodeSettingsUseCase, UpdateQrCodeSettingsUseCase>();
         services.AddScoped<IGetOrganizationsDashboardSummaryUseCase, GetOrganizationsDashboardSummaryUseCase>();
         services.AddScoped<IGetTotalOrganizationsCountUseCase, GetTotalOrganizationsCountUseCase>();
         services.AddScoped<IGetRecentOrganizationsUseCase, GetRecentOrganizationsUseCase>();

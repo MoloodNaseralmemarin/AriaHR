@@ -323,7 +323,8 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
@@ -370,9 +371,11 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Code");
+
                     b.HasIndex("OrganizationId");
 
-                    b.HasIndex("WorkLocationId");
+                    b.HasIndex("WorkLocationId", "IsActive");
 
                     b.ToTable("QRCodes");
                 });
@@ -410,6 +413,23 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("QrCodeMode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QrCodeReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("QrCodeRotationMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QrCodeSecret")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("QrCodeVerificationEnabled")
+                        .HasColumnType("bit");
+
                     b.Property<double>("RadiusInMeters")
                         .HasColumnType("float");
 
@@ -422,6 +442,10 @@ namespace AriaHR.Modules.Organization.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("OrganizationId");
+
+                    b.HasIndex("QrCodeReference")
+                        .IsUnique()
+                        .HasFilter("[QrCodeReference] IS NOT NULL");
 
                     b.ToTable("WorkLocations");
                 });

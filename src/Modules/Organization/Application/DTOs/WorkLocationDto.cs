@@ -8,6 +8,9 @@ public class WorkLocationDto
     public double Longitude { get; set; }
     public double RadiusInMeters { get; set; }
     public bool IsActive { get; set; }
+    public bool QrCodeVerificationEnabled { get; set; } = true;
+    public string QrCodeMode { get; set; } = "Dynamic";
+    public int QrCodeRotationMinutes { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public Guid? CreatedByUserId { get; set; }
 }

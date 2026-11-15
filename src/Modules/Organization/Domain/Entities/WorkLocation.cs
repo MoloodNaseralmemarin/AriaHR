@@ -1,3 +1,4 @@
+using AriaHR.Modules.Organization.Domain.Enums;
 using AriaHR.Shared;
 
 namespace AriaHR.Modules.Organization.Domain.Entities;
@@ -15,6 +16,13 @@ public class WorkLocation : BaseEntity
     public double RadiusInMeters { get; set; }
 
     public bool IsActive { get; set; }
+
+    public bool QrCodeVerificationEnabled { get; set; }
+    public QrCodeMode QrCodeMode { get; set; }
+    public int QrCodeRotationMinutes { get; set; }
+
+    public string? QrCodeReference { get; set; }
+    public string? QrCodeSecret { get; set; }
 
     public ICollection<QRCode> QRCodes { get; set; } = new List<QRCode>();
 }

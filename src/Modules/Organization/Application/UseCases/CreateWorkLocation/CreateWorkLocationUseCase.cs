@@ -1,6 +1,8 @@
 using AriaHR.Modules.Organization.Application.DTOs;
+using AriaHR.Modules.Organization.Application.Options;
 using AriaHR.Modules.Organization.Application.Repositories;
 using AriaHR.Modules.Organization.Domain.Entities;
+using AriaHR.Modules.Organization.Domain.Enums;
 
 namespace AriaHR.Modules.Organization.Application.UseCases.CreateWorkLocation;
 
@@ -64,6 +66,9 @@ public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
             Longitude = request.Longitude,
             RadiusInMeters = request.RadiusInMeters,
             IsActive = request.IsActive,
+            QrCodeVerificationEnabled = true,
+            QrCodeMode = QrCodeMode.Dynamic,
+            QrCodeRotationMinutes = QrCodeOptions.DefaultRotationIntervalMinutes,
             CreatedAtUtc = DateTime.UtcNow,
             CreatedByUserId = createdByUserId
         };
@@ -79,6 +84,9 @@ public class CreateWorkLocationUseCase : ICreateWorkLocationUseCase
             Longitude = workLocation.Longitude,
             RadiusInMeters = workLocation.RadiusInMeters,
             IsActive = workLocation.IsActive,
+            QrCodeVerificationEnabled = workLocation.QrCodeVerificationEnabled,
+            QrCodeMode = workLocation.QrCodeMode.ToString(),
+            QrCodeRotationMinutes = workLocation.QrCodeRotationMinutes,
             CreatedAtUtc = workLocation.CreatedAtUtc,
             CreatedByUserId = workLocation.CreatedByUserId
         };

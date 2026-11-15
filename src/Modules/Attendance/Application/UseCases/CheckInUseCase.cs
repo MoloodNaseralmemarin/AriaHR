@@ -67,20 +67,34 @@ public class CheckInUseCase : ICheckInUseCase
         bool isWithinGeofence = false;
         string method = string.IsNullOrWhiteSpace(request.Method) ? "GPS" : request.Method.Trim();
 
-        if (!string.IsNullOrWhiteSpace(request.QRCodeToken) || string.Equals(method, "QRCode", StringComparison.OrdinalIgnoreCase))
+        bool qrRequested = !string.IsNullOrWhiteSpace(request.QRCodeToken) || string.Equals(method, "QRCode", StringComparison.OrdinalIgnoreCase);
+        bool qrAccepted = false;
+
+        if (qrRequested)
         {
-            method = "QRCode";
             var qrResult = await _workLocationLookupService.ValidateQrCodeAsync(request.QRCodeToken ?? string.Empty, organizationId, cancellationToken);
-            if (!qrResult.IsValid)
+
+            if (qrResult.IsValid)
+            {
+                method = "QRCode";
+                qrCodeId = qrResult.QRCodeId;
+                workLocationId = qrResult.WorkLocationId;
+                isWithinGeofence = true;
+                qrAccepted = true;
+            }
+            else if (await IsQrCodeVerificationDisabledAsync(workLocationId, organizationId, cancellationToken))
+            {
+                // QR verification is disabled for the location: the token is ignored and the
+                // existing GPS rules apply, so attendance stays consistent with current behavior.
+                method = "GPS";
+            }
+            else
             {
                 throw new ArgumentException(qrResult.ErrorMessage ?? "کد QR نامعتبر است.");
             }
-
-            qrCodeId = qrResult.QRCodeId;
-            workLocationId = qrResult.WorkLocationId;
-            isWithinGeofence = true;
         }
-        else if (request.Latitude.HasValue && request.Longitude.HasValue)
+
+        if (!qrAccepted && request.Latitude.HasValue && request.Longitude.HasValue)
         {
             var workLocation = workLocationId.HasValue
                 ? await _workLocationLookupService.GetWorkLocationByIdAsync(workLocationId.Value, cancellationToken)
@@ -129,6 +143,18 @@ public class CheckInUseCase : ICheckInUseCase
         string? fullName = names.TryGetValue(employeeId, out var nameTuple) ? nameTuple.FullName : null;
 
         return MapToDto(record, fullName);
+    }
+
+    private async Task<bool> IsQrCodeVerificationDisabledAsync(
+        Guid? workLocationId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var workLocation = workLocationId.HasValue
+            ? await _workLocationLookupService.GetWorkLocationByIdAsync(workLocationId.Value, cancellationToken)
+            : await _workLocationLookupService.GetWorkLocationForOrganizationAsync(organizationId, cancellationToken);
+
+        return workLocation != null && !workLocation.QrCodeVerificationEnabled;
     }
 
     private static double CalculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2)
