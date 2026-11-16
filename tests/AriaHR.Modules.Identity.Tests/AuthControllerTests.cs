@@ -230,7 +230,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task VerifyOtp_ValidOtp_Returns200OK_WithTokenAndUser()
+    public async Task VerifyOtp_ValidOtp_Returns200OK_WithTokenAndUser_AndDoesNotContainGender()
     {
         // Arrange
         using var dbContext = CreateDbContext();
@@ -281,8 +281,11 @@ public class AuthControllerTests
         Assert.NotNull(response.AccessToken);
         Assert.Equal("مرتضی", response.User.FirstName);
         Assert.Equal("سلطانی", response.User.LastName);
-        Assert.Equal("Male", response.User.Gender);
         Assert.Contains("SystemAdmin", response.User.Roles);
+
+        // Gender is stored on the user but must never be part of the verify-otp contract.
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        Assert.DoesNotContain("gender", json, StringComparison.OrdinalIgnoreCase);
 
         var updatedOtp = await dbContext.OtpCodes.FirstAsync(o => o.Id == otp.Id);
         Assert.True(updatedOtp.IsUsed);
@@ -396,6 +399,7 @@ public class AuthControllerTests
         var response = Assert.IsType<CurrentUserResponse>(okResult.Value);
 
         Assert.Equal(user.Id, response.Id);
+        Assert.Equal(orgId, response.OrganizationId);
         Assert.Equal(expectedOrgName, response.OrganizationName);
         Assert.Contains("CenterManager", response.Roles);
 
@@ -406,7 +410,7 @@ public class AuthControllerTests
         };
         var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
         Assert.Contains($"\"organizationName\":\"{expectedOrgName}\"", json);
-        Assert.DoesNotContain("organizationId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"\"organizationId\":\"{orgId}\"", json);
     }
 
     [Fact]
@@ -456,12 +460,72 @@ public class AuthControllerTests
         var response = Assert.IsType<CurrentUserResponse>(okResult.Value);
 
         Assert.Equal(user.Id, response.Id);
+        Assert.Null(response.OrganizationId);
         Assert.Null(response.OrganizationName);
 
         var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
         var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
         Assert.Contains("\"organizationName\":null", json);
-        Assert.DoesNotContain("organizationId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"organizationId\":null", json);
+    }
+
+    [Fact]
+    public async Task GetCurrentUser_SystemAdminWithOrganization_ReturnsOrganizationIdAndName()
+    {
+        // Arrange
+        using var dbContext = CreateDbContext();
+        var orgId = Guid.NewGuid();
+        var expectedOrgName = "گروه درمانی آریا";
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "System",
+            LastName = "Owner",
+            PhoneNumber = "09121234567",
+            Email = "owner@ariahr.com",
+            OrganizationId = orgId,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var role = new Role { Id = Guid.NewGuid(), Name = "SystemAdmin" };
+        var userRole = new UserRole { UserId = user.Id, RoleId = role.Id };
+
+        await dbContext.Users.AddAsync(user);
+        await dbContext.Roles.AddAsync(role);
+        await dbContext.UserRoles.AddAsync(userRole);
+        await dbContext.SaveChangesAsync();
+
+        var fakeOrgLookup = new FakeOrganizationLookupService();
+        fakeOrgLookup.AddOrganization(orgId, expectedOrgName);
+
+        var controller = CreateController(dbContext, organizationLookupService: fakeOrgLookup);
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, "System Owner")
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
+        };
+
+        // Act
+        var actionResult = await controller.GetCurrentUser(CancellationToken.None);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsType<CurrentUserResponse>(okResult.Value);
+
+        Assert.Equal(orgId, response.OrganizationId);
+        Assert.Equal(expectedOrgName, response.OrganizationName);
+        Assert.Contains("SystemAdmin", response.Roles);
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value, jsonOptions);
+        Assert.Contains($"\"organizationId\":\"{orgId}\"", json);
     }
 
     [Fact]
