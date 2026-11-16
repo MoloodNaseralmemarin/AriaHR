@@ -165,6 +165,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("Frontend");
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

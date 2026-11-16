@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AriaHR.Modules.Attendance.Infrastructure.Migrations
 {
     [DbContext(typeof(AttendanceDbContext))]
-    [Migration("20261115103934_AddAttendanceScanGeofenceAndIdempotency")]
-    partial class AddAttendanceScanGeofenceAndIdempotency
+    [Migration("20261116130936_AttendanceDbModelSync")]
+    partial class AttendanceDbModelSync
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
