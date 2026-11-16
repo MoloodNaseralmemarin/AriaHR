@@ -194,7 +194,7 @@ dotnet ef database update --project src/Modules/Attendance/Infrastructure \
 
 See §6 for the full reference. Summary:
 
-- `WorkLocationsController` — `api/organizations/work-locations` CRUD + `qrcode/*`
+- `WorkLocationsController` — `api/WorkLocations/work-locations` CRUD + `qrcode/*`
 - `AttendanceController` — added `POST api/attendance/scan`
 - Existing `ShiftAssignmentsController`, `ShiftsController`, auth and other modules are unchanged.
 
@@ -268,7 +268,7 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 
 ### 6.1 List work locations
 
-`GET /api/organizations/work-locations?organizationId={guid}`
+`GET /api/WorkLocations/work-locations?organizationId={guid}`
 
 - Purpose: list all work locations of a center.
 - Auth: JWT. Roles: CenterManager, SystemAdmin.
@@ -301,14 +301,14 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 
 ### 6.2 Get one work location
 
-`GET /api/organizations/work-locations/{workLocationId}`
+`GET /api/WorkLocations/work-locations/{workLocationId}`
 
 - Success `200`: a single object as above.
 - Errors: `400` invalid id, `401`, `403` other center, `404` not found.
 
 ### 6.3 Create work location
 
-`POST /api/organizations/work-locations`
+`POST /api/WorkLocations/work-locations`
 
 ```json
 {
@@ -354,7 +354,7 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 
 ### 6.4 Update work location
 
-`PUT /api/organizations/work-locations/{workLocationId}`
+`PUT /api/WorkLocations/work-locations/{workLocationId}`
 
 ```json
 {
@@ -372,7 +372,7 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 
 ### 6.5 QR settings
 
-`GET /api/organizations/work-locations/{workLocationId}/qrcode/settings`
+`GET /api/WorkLocations/work-locations/{workLocationId}/qrcode/settings`
 
 ```json
 {
@@ -388,7 +388,7 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 }
 ```
 
-`PUT /api/organizations/work-locations/{workLocationId}/qrcode/settings`
+`PUT /api/WorkLocations/work-locations/{workLocationId}/qrcode/settings`
 
 ```json
 { "qrCodeMode": 2, "qrRotationIntervalMinutes": 10 }
@@ -400,7 +400,7 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 
 ### 6.6 Current QR token
 
-`GET /api/organizations/work-locations/{workLocationId}/qrcode/current`
+`GET /api/WorkLocations/work-locations/{workLocationId}/qrcode/current`
 
 - Returns the token currently valid for this location. No database write.
 - Success `200`:
@@ -423,17 +423,17 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 
 ### 6.7 Generate QR
 
-`POST /api/organizations/work-locations/{workLocationId}/qrcode/generate`
+`POST /api/WorkLocations/work-locations/{workLocationId}/qrcode/generate`
 
 - Marks the QR as generated (`qrCodeLastGeneratedAtUtc`) and returns the current token. Requires an enabled QR.
 - Success `200`: same shape as 6.6.
 - Errors: `400` (`QR_CODE_DISABLED`, `WORK_LOCATION_INACTIVE`), `401`, `403`, `404`.
-- Legacy alias: `POST /api/organizations/work-locations/{workLocationId}/qr` (same behaviour).
+- Legacy alias: `POST /api/WorkLocations/work-locations/{workLocationId}/qr` (same behaviour).
 
 ### 6.8 Enable / disable QR
 
-`POST /api/organizations/work-locations/{workLocationId}/qrcode/enable`
-`POST /api/organizations/work-locations/{workLocationId}/qrcode/disable`
+`POST /api/WorkLocations/work-locations/{workLocationId}/qrcode/enable`
+`POST /api/WorkLocations/work-locations/{workLocationId}/qrcode/disable`
 
 - Enable requires an active work location; a fresh identifier is generated if missing.
 - Success `200`: settings object (§6.5).
@@ -441,7 +441,7 @@ Timestamps are ISO-8601 UTC (`yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`). Field names are ca
 
 ### 6.9 Revoke / regenerate QR
 
-`POST /api/organizations/work-locations/{workLocationId}/qrcode/revoke`
+`POST /api/WorkLocations/work-locations/{workLocationId}/qrcode/revoke`
 
 - Rotates `QrCodeIdentifier` immediately (old tokens become invalid) and deactivates legacy `QRCodes` rows for the location.
 - Success `200`: new token object (§6.6).
@@ -637,13 +637,13 @@ export interface UpdateWorkLocationRequest {
 Create:
 
 ```ts
-this.http.post<WorkLocationDto>(`${api}/api/organizations/work-locations`, body);
+this.http.post<WorkLocationDto>(`${api}/api/WorkLocations/work-locations`, body);
 ```
 
 Edit (map pin + radius form):
 
 ```ts
-this.http.put<WorkLocationDto>(`${api}/api/organizations/work-locations/${id}`, {
+this.http.put<WorkLocationDto>(`${api}/api/WorkLocations/work-locations/${id}`, {
   name, latitude, longitude, allowedRadiusInMeters, isActive
 });
 ```
@@ -677,18 +677,18 @@ export interface QrCodeResponse {
 }
 
 // Read settings
-this.http.get<QrCodeSettingsDto>(`${api}/api/organizations/work-locations/${id}/qrcode/settings`);
+this.http.get<QrCodeSettingsDto>(`${api}/api/WorkLocations/work-locations/${id}/qrcode/settings`);
 
 // Switch to dynamic with a 10-minute rotation
 this.http.put<QrCodeSettingsDto>(
-  `${api}/api/organizations/work-locations/${id}/qrcode/settings`,
+  `${api}/api/WorkLocations/work-locations/${id}/qrcode/settings`,
   { qrCodeMode: 2, qrRotationIntervalMinutes: 10 });
 
 // Enable / disable / revoke / generate
-this.http.post<QrCodeSettingsDto>(`${api}/api/organizations/work-locations/${id}/qrcode/enable`, {});
-this.http.post<QrCodeSettingsDto>(`${api}/api/organizations/work-locations/${id}/qrcode/disable`, {});
-this.http.post<QrCodeResponse>(`${api}/api/organizations/work-locations/${id}/qrcode/revoke`, {});
-this.http.post<QrCodeResponse>(`${api}/api/organizations/work-locations/${id}/qrcode/generate`, {});
+this.http.post<QrCodeSettingsDto>(`${api}/api/WorkLocations/work-locations/${id}/qrcode/enable`, {});
+this.http.post<QrCodeSettingsDto>(`${api}/api/WorkLocations/work-locations/${id}/qrcode/disable`, {});
+this.http.post<QrCodeResponse>(`${api}/api/WorkLocations/work-locations/${id}/qrcode/revoke`, {});
+this.http.post<QrCodeResponse>(`${api}/api/WorkLocations/work-locations/${id}/qrcode/generate`, {});
 ```
 
 Displaying the code on a fixed monitor/tablet:
@@ -696,7 +696,7 @@ Displaying the code on a fixed monitor/tablet:
 ```ts
 loadCurrent(): Observable<QrCodeResponse> {
   return this.http.get<QrCodeResponse>(
-    `${api}/api/organizations/work-locations/${id}/qrcode/current`);
+    `${api}/api/WorkLocations/work-locations/${id}/qrcode/current`);
 }
 
 // Poll: refresh at the server-provided boundary, or every 15 s as a fallback.
@@ -930,6 +930,6 @@ Both contexts report *"No changes have been made to the model since the last mig
 
 - Angular implementation (separate phase) per §7.
 - Apply migrations to the target database and run an end-to-end smoke test of `scan` with a real JWT and real coordinates.
-- Consider per-user rate limiting on `POST /api/attendance/scan` and `POST /api/organizations/work-locations/{id}/qrcode/generate`.
+- Consider per-user rate limiting on `POST /api/attendance/scan` and `POST /api/WorkLocations/work-locations/{id}/qrcode/generate`.
 - Optional integrity layers: device attestation, Wi-Fi/BLE checks, IP allow-listing, anomaly reporting for impossible travel.
 - Optional read model for QR audit history (current design intentionally avoids per-rotation rows).

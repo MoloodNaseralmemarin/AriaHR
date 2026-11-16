@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AriaHR.Modules.Organization.API.Controllers;
 
 [ApiController]
-[Route("api/organizations/work-locations")]
+[Route("api/WorkLocations/work-locations")]
 [Authorize(Roles = "CenterManager,SystemAdmin")]
 public class WorkLocationsController : ControllerBase
 {
