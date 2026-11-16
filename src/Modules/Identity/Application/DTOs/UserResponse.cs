@@ -6,5 +6,4 @@ public record UserResponse(
     string LastName,
     string PhoneNumber,
     List<string> Roles,
-    Guid? OrganizationId = null,
-    string? Gender = null);
+    Guid? OrganizationId = null);

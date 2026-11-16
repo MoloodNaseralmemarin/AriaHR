@@ -6,4 +6,5 @@ public record CurrentUserResponse(
     string LastName,
     string PhoneNumber,
     List<string> Roles,
+    Guid? OrganizationId = null,
     string? OrganizationName = null);
