@@ -222,7 +222,7 @@ public class AttendanceUseCaseTests
     }
 
     [Fact]
-    public async Task GetMyStatus_ReturnsActiveCheckInOrNull()
+    public async Task GetMyHistory_Pagination_ReturnsPagedResult()
     {
         // Arrange
         using var db = GetInMemoryDbContext();
@@ -231,20 +231,39 @@ public class AttendanceUseCaseTests
         var empLookup = new TestEmployeeLookupService();
         var locLookup = new TestWorkLocationLookupService();
 
+        currentUser.OrganizationId = empLookup.OrganizationId;
+
         var checkInUseCase = new CheckInUseCase(repository, currentUser, empLookup, locLookup);
-        var statusUseCase = new GetMyAttendanceStatusUseCase(repository, currentUser, empLookup);
 
-        // Initial status should be null
-        var initial = await statusUseCase.ExecuteAsync();
-        Assert.Null(initial);
+        // Add 25 check-in records
+        for (int i = 0; i < 25; i++)
+        {
+            await checkInUseCase.ExecuteAsync(new CheckInRequest { Method = "GPS" });
+        }
 
-        // Check in
-        await checkInUseCase.ExecuteAsync(new CheckInRequest { Method = "GPS" });
+        // Act - First page
+        var historyUseCase = new GetMyAttendanceHistoryUseCase(repository, currentUser, empLookup);
+        var firstPage = await historyUseCase.ExecuteAsync(new MyAttendanceHistoryQuery { Page = 1, PageSize = 10 });
 
-        // Status should return active check-in
-        var active = await statusUseCase.ExecuteAsync();
-        Assert.NotNull(active);
-        Assert.Equal(empLookup.EmployeeId, active.EmployeeId);
+        // Assert
+        Assert.Equal(10, firstPage.Items.Count);
+        Assert.Equal(25, firstPage.Total);
+        Assert.Equal(3, firstPage.TotalPages);
+        Assert.Equal(1, firstPage.Page);
+
+        // Act - Second page
+        var secondPage = await historyUseCase.ExecuteAsync(new MyAttendanceHistoryQuery { Page = 2, PageSize = 10 });
+        Assert.Equal(10, secondPage.Items.Count);
+        Assert.Equal(25, secondPage.Total);
+        Assert.Equal(3, secondPage.TotalPages);
+        Assert.Equal(2, secondPage.Page);
+
+        // Act - Third page
+        var thirdPage = await historyUseCase.ExecuteAsync(new MyAttendanceHistoryQuery { Page = 3, PageSize = 10 });
+        Assert.Equal(5, thirdPage.Items.Count);
+        Assert.Equal(25, thirdPage.Total);
+        Assert.Equal(3, thirdPage.TotalPages);
+        Assert.Equal(3, thirdPage.Page);
     }
 
     [Fact]

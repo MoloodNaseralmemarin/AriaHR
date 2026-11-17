@@ -1,3 +1,4 @@
+using AriaHR.Modules.Attendance.Application.DTOs;
 using AriaHR.Modules.Attendance.Application.Repositories;
 using AriaHR.Modules.Attendance.Domain.Entities;
 using AriaHR.Modules.Attendance.Infrastructure.Persistence;
@@ -44,7 +45,57 @@ public class AttendanceRecordRepository : IAttendanceRecordRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<AttendanceRecord>> GetByEmployeeIdAsync(
+    public async Task<PagedResult<AttendanceRecord>> GetByEmployeeIdPagedAsync(
+        Guid employeeId,
+        int page,
+        int pageSize,
+        DateOnly? startDate = null,
+        DateOnly? endDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1)
+        {
+            page = 1;
+        }
+
+        if (pageSize < 1 || pageSize > 100)
+        {
+            pageSize = 20;
+        }
+
+        var query = _dbContext.AttendanceRecords
+            .AsNoTracking()
+            .Where(r => !r.IsDeleted && r.EmployeeId == employeeId);
+
+        if (startDate.HasValue)
+        {
+            var startUtc = startDate.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(r => r.CheckInTime >= startUtc);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endUtc = endDate.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(r => r.CheckInTime < endUtc);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(r => r.CheckInTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<AttendanceRecord>
+        {
+            Items = items,
+            Total = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            Page = page
+        };
+    }
+
+    public async Task<int> GetByEmployeeIdCountAsync(
         Guid employeeId,
         DateOnly? startDate = null,
         DateOnly? endDate = null,
@@ -66,9 +117,7 @@ public class AttendanceRecordRepository : IAttendanceRecordRepository
             query = query.Where(r => r.CheckInTime < endUtc);
         }
 
-        return await query
-            .OrderByDescending(r => r.CheckInTime)
-            .ToListAsync(cancellationToken);
+        return await query.CountAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<AttendanceRecord>> GetByOrganizationIdAsync(

@@ -4,5 +4,5 @@ namespace AriaHR.Modules.Attendance.Application.UseCases;
 
 public interface IGetMyAttendanceHistoryUseCase
 {
-    Task<IReadOnlyList<AttendanceRecordDto>> ExecuteAsync(DateOnly? startDate = null, DateOnly? endDate = null, CancellationToken cancellationToken = default);
+    Task<PagedResult<AttendanceRecordDto>> ExecuteAsync(MyAttendanceHistoryQuery query, CancellationToken cancellationToken = default);
 }

@@ -20,9 +20,8 @@ public class GetMyAttendanceHistoryUseCase : IGetMyAttendanceHistoryUseCase
         _employeeLookupService = employeeLookupService ?? throw new ArgumentNullException(nameof(employeeLookupService));
     }
 
-    public async Task<IReadOnlyList<AttendanceRecordDto>> ExecuteAsync(
-        DateOnly? startDate = null,
-        DateOnly? endDate = null,
+    public async Task<PagedResult<AttendanceRecordDto>> ExecuteAsync(
+        MyAttendanceHistoryQuery query,
         CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId;
@@ -34,20 +33,45 @@ public class GetMyAttendanceHistoryUseCase : IGetMyAttendanceHistoryUseCase
         var employeeDetails = await _employeeLookupService.GetEmployeeDetailsByUserIdAsync(userId, cancellationToken);
         if (!employeeDetails.HasValue)
         {
-            return Array.Empty<AttendanceRecordDto>();
+            return new PagedResult<AttendanceRecordDto>
+            {
+                Items = new List<AttendanceRecordDto>(),
+                Total = 0,
+                TotalPages = 0
+            };
         }
 
         var (employeeId, _) = employeeDetails.Value;
 
-        var records = await _repository.GetByEmployeeIdAsync(employeeId, startDate, endDate, cancellationToken);
-        if (records.Count == 0)
+        if (query.Page < 1)
         {
-            return Array.Empty<AttendanceRecordDto>();
+            query.Page = 1;
         }
+
+        if (query.PageSize < 1 || query.PageSize > 100)
+        {
+            query.PageSize = 20;
+        }
+
+        var startDate = query.StartDate?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var endDate = query.EndDate.HasValue
+            ? query.EndDate.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)
+            : null;
+
+        var totalCount = await _repository.GetByEmployeeIdCountAsync(employeeId, startDate, endDate, cancellationToken);
+        var records = await _repository.GetByEmployeeIdPagedAsync(employeeId, query.Page, query.PageSize, startDate, endDate, cancellationToken);
 
         var names = await _employeeLookupService.GetEmployeeNamesByIdsAsync(new[] { employeeId }, cancellationToken);
         string? fullName = names.TryGetValue(employeeId, out var nameTuple) ? nameTuple.FullName : null;
 
-        return records.Select(r => CheckInUseCase.MapToDto(r, fullName)).ToList();
+        var dtos = records.Select(r => CheckInUseCase.MapToDto(r, fullName)).ToList();
+
+        return new PagedResult<AttendanceRecordDto>
+        {
+            Items = dtos,
+            Total = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)query.PageSize),
+            Page = query.Page
+        };
     }
 }

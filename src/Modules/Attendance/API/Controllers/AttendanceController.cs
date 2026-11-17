@@ -2,6 +2,7 @@ using AriaHR.Modules.Attendance.Application;
 using AriaHR.Modules.Attendance.Application.DTOs;
 using AriaHR.Modules.Attendance.Application.Exceptions;
 using AriaHR.Modules.Attendance.Application.UseCases;
+using AriaHR.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,8 @@ public class AttendanceController : ControllerBase
     private readonly IGetOrganizationAttendanceUseCase _getOrganizationAttendanceUseCase;
     private readonly IUpdateAttendanceStatusUseCase _updateAttendanceStatusUseCase;
     private readonly IScanAttendanceUseCase _scanAttendanceUseCase;
+    private readonly IEmployeeLookupService _employeeLookupService;
+    private readonly IWorkLocationLookupService _workLocationLookupService;
 
     public AttendanceController(
         ICheckInUseCase checkInUseCase,
@@ -28,7 +31,9 @@ public class AttendanceController : ControllerBase
         IGetMyAttendanceHistoryUseCase getMyAttendanceHistoryUseCase,
         IGetOrganizationAttendanceUseCase getOrganizationAttendanceUseCase,
         IUpdateAttendanceStatusUseCase updateAttendanceStatusUseCase,
-        IScanAttendanceUseCase scanAttendanceUseCase)
+        IScanAttendanceUseCase scanAttendanceUseCase,
+        IEmployeeLookupService employeeLookupService,
+        IWorkLocationLookupService workLocationLookupService)
     {
         _checkInUseCase = checkInUseCase ?? throw new ArgumentNullException(nameof(checkInUseCase));
         _checkOutUseCase = checkOutUseCase ?? throw new ArgumentNullException(nameof(checkOutUseCase));
@@ -37,6 +42,8 @@ public class AttendanceController : ControllerBase
         _getOrganizationAttendanceUseCase = getOrganizationAttendanceUseCase ?? throw new ArgumentNullException(nameof(getOrganizationAttendanceUseCase));
         _updateAttendanceStatusUseCase = updateAttendanceStatusUseCase ?? throw new ArgumentNullException(nameof(updateAttendanceStatusUseCase));
         _scanAttendanceUseCase = scanAttendanceUseCase ?? throw new ArgumentNullException(nameof(scanAttendanceUseCase));
+        _employeeLookupService = employeeLookupService ?? throw new ArgumentNullException(nameof(employeeLookupService));
+        _workLocationLookupService = workLocationLookupService ?? throw new ArgumentNullException(nameof(workLocationLookupService));
     }
 
     [HttpPost("scan")]
@@ -234,15 +241,79 @@ public class AttendanceController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("worklocation")]
+    [ProducesResponseType(typeof(WorkLocationDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetMyWorkLocation(CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.UserId;
+        if (userId == Guid.Empty)
+        {
+            return Unauthorized(new ProblemDetails
+            {
+                Status = StatusCodes.Status401Unauthorized,
+                Title = "دسترسی غیرمجاز",
+                Detail = "کاربر احراز هویت نشده است."
+            });
+        }
+
+        var employeeDetails = await _employeeLookupService.GetEmployeeDetailsByUserIdAsync(userId, cancellationToken);
+        if (!employeeDetails.HasValue)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "کارمند یافت نشد",
+                Detail = "اطلاعات کارمندی برای کاربر جاری یافت نشد."
+            });
+        }
+
+        var (employeeId, organizationId) = employeeDetails.Value;
+
+        var workLocation = await _workLocationLookupService.GetWorkLocationForOrganizationAsync(organizationId, cancellationToken);
+
+        if (workLocation == null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "محل کار یافت نشد",
+                Detail = "محل کار سازمانی یافت نشد."
+            });
+        }
+
+        if (!workLocation.IsActive)
+        {
+            return new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "محل کار غیرفعال",
+                Detail = "محل کار شما حالياً غیرفعال است."
+            };
+        }
+
+        return Ok(workLocation);
+    }
+
     [HttpGet("my")]
-    [ProducesResponseType(typeof(IReadOnlyList<AttendanceRecordDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<AttendanceRecordDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetMyHistory(
-        [FromQuery] DateOnly? startDate,
-        [FromQuery] DateOnly? endDate,
-        CancellationToken cancellationToken)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _getMyAttendanceHistoryUseCase.ExecuteAsync(startDate, endDate, cancellationToken);
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+        var query = new MyAttendanceHistoryQuery
+        {
+            Page = page,
+            PageSize = pageSize
+        };
+
+        var result = await _getMyAttendanceHistoryUseCase.ExecuteAsync(query, cancellationToken);
         return Ok(result);
     }
 

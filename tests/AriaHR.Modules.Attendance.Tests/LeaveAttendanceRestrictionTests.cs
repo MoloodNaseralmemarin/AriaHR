@@ -154,6 +154,8 @@ public class LeaveAttendanceRestrictionTests
             historyUseCase,
             orgUseCase,
             updateUseCase,
+            empLookup, // IEmployeeLookupService
+            locLookup, // IWorkLocationLookupService
             new FakeScanAttendanceUseCase());
 
         // Act
