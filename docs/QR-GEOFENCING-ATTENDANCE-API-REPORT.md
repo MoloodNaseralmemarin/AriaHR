@@ -246,13 +246,14 @@ Server UTC time is the only clock used for expiry. The client never validates or
 - **Coordinate format:** WGS-84 decimal degrees, stored as `decimal(9,6)` (≈ 0.11 m). API accepts decimal numbers. Latitude `[-90, 90]`, longitude `[-180, 180]`; violations return `LOCATION_COORDINATES_INVALID`.
 - **Radius:** `AllowedRadiusInMeters` per work location, `decimal(8,1)`, configurable limits `QrCode:MinAllowedRadiusMeters` (1) and `QrCode:MaxAllowedRadiusMeters` (1000).
 - **Distance:** Haversine (`R = 6 371 000 m`) between the employee's reported position and the stored work-location position. The result is rounded to 0.1 m in responses and stored on the attendance record.
-- **GPS accuracy:** `GpsAccuracyInMeters` is mandatory and must be `> 0` and `<= Attendance:Gps:MaxAccuracyMeters` (default 50 m). Otherwise `LOCATION_ACCURACY_INSUFFICIENT` is returned so the employee can retry.
+- **GPS accuracy (gate R1 — admission):** `GpsAccuracyInMeters` is mandatory, finite and `>= 0`; missing, negative, `NaN` or infinite values return `LOCATION_COORDINATES_INVALID`. It is rejected with `LOCATION_ACCURACY_INSUFFICIENT` only when it exceeds the absolute `Attendance:Gps:MaxGpsAccuracyInMeters` (default 50 m). Accuracy is an absolute measurement-uncertainty limit and is never compared with `AllowedRadiusInMeters`.
+- **Geofence membership (gate R2 — uncertainty-aware):** `effectiveDistance = distance - min(accuracy, Attendance:Gps:MaxAssumedUncertaintyMeters)` (default cap 20 m). `distance <= radius` is `Inside`; otherwise `effectiveDistance <= radius` is `UncertainInside` (accepted); everything else is `OUTSIDE_ALLOWED_RADIUS`. Responses add `effectiveDistanceMeters`, `uncertaintyCreditMeters` and `geofenceOutcome` (`Inside` / `UncertainInside` / `Outside`).
 - **Freshness:** `LocationTimestampUtc` is mandatory. It is rejected when it is more than `Attendance:Gps:MaxFutureSkewSeconds` (default 30 s) in the future (`LOCATION_TIMESTAMP_INVALID`) or older than `Attendance:Gps:MaxLocationAgeSeconds` (default 120 s) (`LOCATION_DATA_EXPIRED`).
 - **Boundary:** the decision is `distance <= allowedRadius` (inclusive). Example: radius 5 m, distance 4.9 m → accepted; distance 15 m → `OUTSIDE_ALLOWED_RADIUS`.
 - **Who decides:** only the backend. The request cannot carry work-location coordinates, a radius, an employee id or `isInsideRadius`.
 - **Known limitations (important):**
   - Browser/device geolocation can be spoofed (developer tools, mock-location apps, rooted devices). GPS validation raises the effort but **does not prove** physical presence.
-  - Web Geolocation accuracy is frequently 20–100 m indoors; a 5 m radius may be unusable inside buildings. Center managers should set a realistic radius and accuracy limit.
+  - Web Geolocation accuracy is frequently 20–100 m indoors. The uncertainty-aware gate R2 compensates a bounded part of that error (`MaxAssumedUncertaintyMeters`), so a 10 m radius can still work indoors without widening the radius itself; center managers should still set a realistic radius and accuracy limit.
   - No device attestation, IP cross-check, BLE/NFC or Wi-Fi fingerprinting is implemented. These would be the next integrity layers; they require additional native capabilities and are out of scope.
   - `LOCATION_PERMISSION_DENIED` can only be produced by the browser; the API cannot detect denied permission. The Angular app must map its own geolocation error to that code.
 
@@ -545,8 +546,8 @@ Error codes:
 | `WORK_LOCATION_NOT_FOUND` | 404 | token points to a missing/deleted location |
 | `WORK_LOCATION_INACTIVE` | 400 | location deactivated |
 | `LOCATION_UNAVAILABLE` | 400 | coordinates missing |
-| `LOCATION_COORDINATES_INVALID` | 400 | out-of-range coordinates |
-| `LOCATION_ACCURACY_INSUFFICIENT` | 400 | accuracy missing, ≤ 0, or above the limit (retry allowed) |
+| `LOCATION_COORDINATES_INVALID` | 400 | out-of-range coordinates, or accuracy missing/negative/not finite |
+| `LOCATION_ACCURACY_INSUFFICIENT` | 400 | accuracy above `Attendance:Gps:MaxGpsAccuracyInMeters` (retry allowed) |
 | `LOCATION_TIMESTAMP_INVALID` | 400 | timestamp missing or in the future |
 | `LOCATION_DATA_EXPIRED` | 400 | timestamp older than the freshness limit |
 | `OUTSIDE_ALLOWED_RADIUS` | 400 | distance > allowed radius |
