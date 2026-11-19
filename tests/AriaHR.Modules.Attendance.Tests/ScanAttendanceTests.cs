@@ -1,6 +1,7 @@
 using AriaHR.Modules.Attendance.Application;
 using AriaHR.Modules.Attendance.Application.DTOs;
 using AriaHR.Modules.Attendance.Application.Exceptions;
+using AriaHR.Modules.Attendance.Application.Geofencing;
 using AriaHR.Modules.Attendance.Application.Options;
 using AriaHR.Modules.Attendance.Application.UseCases;
 using AriaHR.Modules.Attendance.Infrastructure.Persistence;
@@ -66,6 +67,7 @@ public class ScanAttendanceTests
         public string? QrErrorCode { get; set; }
         public string? QrErrorMessage { get; set; }
         public bool LocationActive { get; set; } = true;
+        public decimal AllowedRadius { get; set; } = AllowedRadiusMeters;
 
         public Task<WorkLocationDetailsDto?> GetWorkLocationByIdAsync(Guid workLocationId, CancellationToken cancellationToken = default)
         {
@@ -75,7 +77,7 @@ public class ScanAttendanceTests
                 "Main Site",
                 WorkLocationLatitude,
                 WorkLocationLongitude,
-                AllowedRadiusMeters,
+                AllowedRadius,
                 LocationActive,
                 true,
                 5));
@@ -135,13 +137,20 @@ public class ScanAttendanceTests
         public void Dispose() => Db.Dispose();
     }
 
-    private static Harness CreateHarness(double maxAccuracyMeters = 10)
+    private static Harness CreateHarness(
+        double maxGpsAccuracyMeters = 50,
+        double maxAssumedUncertaintyMeters = 20,
+        decimal allowedRadiusMeters = AllowedRadiusMeters)
     {
         var db = GetInMemoryDbContext();
         var repository = new AttendanceRecordRepository(db);
         var currentUser = new FakeCurrentUserService();
         var employeeLookup = new FakeEmployeeLookupService { OrganizationId = currentUser.OrganizationId!.Value };
-        var locationLookup = new FakeWorkLocationLookupService { OrganizationId = employeeLookup.OrganizationId };
+        var locationLookup = new FakeWorkLocationLookupService
+        {
+            OrganizationId = employeeLookup.OrganizationId,
+            AllowedRadius = allowedRadiusMeters
+        };
         var shiftLookup = new FakeShiftLookupService();
 
         var useCase = new ScanAttendanceUseCase(
@@ -151,7 +160,8 @@ public class ScanAttendanceTests
             locationLookup,
             Options.Create(new GpsValidationOptions
             {
-                MaxAccuracyMeters = maxAccuracyMeters,
+                MaxGpsAccuracyInMeters = maxGpsAccuracyMeters,
+                MaxAssumedUncertaintyMeters = maxAssumedUncertaintyMeters,
                 MaxLocationAgeSeconds = 120,
                 MaxFutureSkewSeconds = 30
             }),
@@ -175,7 +185,8 @@ public class ScanAttendanceTests
     /// </summary>
     private static decimal LatitudeOffsetFor(double distanceMeters)
     {
-        const double metersPerDegreeLatitude = 111_320d;
+        // Matches the Earth radius used by GeoDistanceCalculator so the offsets are exact.
+        const double metersPerDegreeLatitude = 6_371_000d * Math.PI / 180d;
         return (decimal)(distanceMeters / metersPerDegreeLatitude);
     }
 
@@ -248,7 +259,7 @@ public class ScanAttendanceTests
     [Fact]
     public async Task Scan_InsufficientAccuracy_IsRejectedAndAllowsRetry()
     {
-        using var harness = CreateHarness(maxAccuracyMeters: 10);
+        using var harness = CreateHarness(maxGpsAccuracyMeters: 10);
 
         var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
             harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 3, accuracyMeters: 25)));
@@ -469,5 +480,178 @@ public class ScanAttendanceTests
         var ex = await Assert.ThrowsAsync<AttendanceScanException>(() => harness.UseCase.ExecuteAsync(BuildRequest()));
         Assert.Equal(AttendanceErrorCodes.EmployeeNotFound, ex.Code);
         Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task Scan_InactiveWorkLocation_IsRejected()
+    {
+        using var harness = CreateHarness();
+        harness.LocationLookup.LocationActive = false;
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() => harness.UseCase.ExecuteAsync(BuildRequest()));
+        Assert.Equal(AttendanceErrorCodes.WorkLocationInactive, ex.Code);
+        Assert.Empty(await harness.Db.AttendanceRecords.ToListAsync());
+    }
+
+    // Gate R1 — indoor case: 3 m from a 10 m location with a 30 m indoor fix. The accuracy is a
+    // measurement uncertainty, not a radius, so admission must not depend on the 10 m boundary.
+    [Fact]
+    public async Task Scan_IndoorPoorAccuracy_WithinRadius_IsAccepted()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var response = await harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 3, accuracyMeters: 30));
+
+        Assert.True(response.Success);
+        Assert.Equal(AttendanceErrorCodes.AttendanceRegistered, response.Code);
+        Assert.Equal("Inside", response.Data!.GeofenceOutcome);
+        Assert.Equal(30, response.Data.GpsAccuracyInMeters);
+        Assert.Equal(10m, response.Data.AllowedRadiusInMeters);
+
+        var record = await harness.Db.AttendanceRecords.SingleAsync();
+        Assert.Equal(30, record.CheckInAccuracy);
+    }
+
+    [Fact]
+    public async Task Scan_OutdoorGoodAccuracy_WithinRadius_IsInside()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var response = await harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 4, accuracyMeters: 5));
+
+        Assert.True(response.Success);
+        Assert.Equal("Inside", response.Data!.GeofenceOutcome);
+        Assert.Equal(5d, response.Data.UncertaintyCreditMeters);
+    }
+
+    [Fact]
+    public async Task Scan_TrulyFarReading_IsOutsideAllowedRadius()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
+            harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 60, accuracyMeters: 5)));
+
+        Assert.Equal(AttendanceErrorCodes.OutsideAllowedRadius, ex.Code);
+        Assert.Equal("Outside", ex.Data!.GeofenceOutcome);
+        Assert.Equal(55m, ex.Data.EffectiveDistanceMeters);
+        Assert.Empty(await harness.Db.AttendanceRecords.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Scan_UncertainInside_IsAcceptedAndReported()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        // 25 m away with a 20 m uncertainty credit: effective distance 5 m, plausibly inside.
+        var response = await harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 25, accuracyMeters: 20));
+
+        Assert.True(response.Success);
+        Assert.Equal("UncertainInside", response.Data!.GeofenceOutcome);
+        Assert.Equal(20, response.Data.UncertaintyCreditMeters);
+        Assert.True(response.Data.EffectiveDistanceMeters <= 10m);
+    }
+
+    [Fact]
+    public async Task Scan_VeryPoorFix_IsRejectedByAbsoluteAccuracyGate()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
+            harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 3, accuracyMeters: 120)));
+
+        Assert.Equal(AttendanceErrorCodes.LocationAccuracyInsufficient, ex.Code);
+        Assert.Equal(120, ex.Data!.GpsAccuracyInMeters);
+        Assert.Empty(await harness.Db.AttendanceRecords.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Scan_SpoofedHugeAccuracy_IsRejectedAtAdmission()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
+            harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 60, accuracyMeters: 100_000)));
+
+        Assert.Equal(AttendanceErrorCodes.LocationAccuracyInsufficient, ex.Code);
+        Assert.Empty(await harness.Db.AttendanceRecords.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Scan_AccuracyCredit_IsCappedCannotReachInsideFromFarAway()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        // 50 m is admitted by R1 but the credit is capped at 20 m, so 60 m stays outside.
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
+            harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 60, accuracyMeters: 50)));
+
+        Assert.Equal(AttendanceErrorCodes.OutsideAllowedRadius, ex.Code);
+        Assert.Equal(20, ex.Data!.UncertaintyCreditMeters);
+        Assert.Equal(40m, ex.Data.EffectiveDistanceMeters);
+    }
+
+    [Fact]
+    public async Task Scan_BoundaryOutsideWithoutUncertainty_IsRejected()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
+            harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 10.1, accuracyMeters: 0)));
+
+        Assert.Equal(AttendanceErrorCodes.OutsideAllowedRadius, ex.Code);
+    }
+
+    [Theory]
+    [InlineData(10.0, 0.0, 10.0, GeofenceOutcome.Inside)]
+    [InlineData(10.1, 0.0, 10.0, GeofenceOutcome.Outside)]
+    [InlineData(10.1, 5.0, 10.0, GeofenceOutcome.UncertainInside)]
+    [InlineData(30.0, 100_000.0, 10.0, GeofenceOutcome.UncertainInside)]
+    [InlineData(60.0, 100_000.0, 10.0, GeofenceOutcome.Outside)]
+    public void GeofenceEvaluator_ClassifiesBoundaryAndCappedUncertainty(
+        double distanceMeters,
+        double accuracyMeters,
+        double allowedRadiusMeters,
+        GeofenceOutcome expected)
+    {
+        var evaluation = GeofenceEvaluator.Evaluate(distanceMeters, accuracyMeters, allowedRadiusMeters, 20);
+
+        Assert.Equal(expected, evaluation.Outcome);
+        Assert.True(evaluation.UncertaintyCreditMeters <= 20);
+        Assert.Equal(distanceMeters - evaluation.UncertaintyCreditMeters, evaluation.EffectiveDistanceInMeters, 6);
+    }
+
+    [Fact]
+    public async Task Scan_MissingAccuracy_IsRejectedAsInvalidCoordinates()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+        var request = BuildRequest(distanceMeters: 3);
+        request.GpsAccuracyInMeters = null;
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() => harness.UseCase.ExecuteAsync(request));
+        Assert.Equal(AttendanceErrorCodes.LocationCoordinatesInvalid, ex.Code);
+        Assert.Empty(await harness.Db.AttendanceRecords.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Scan_NegativeAccuracy_IsRejectedAsInvalidCoordinates()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
+            harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 3, accuracyMeters: -1)));
+
+        Assert.Equal(AttendanceErrorCodes.LocationCoordinatesInvalid, ex.Code);
+    }
+
+    [Fact]
+    public async Task Scan_NaN_Accuracy_IsRejectedAsInvalidCoordinates()
+    {
+        using var harness = CreateHarness(allowedRadiusMeters: 10m);
+
+        var ex = await Assert.ThrowsAsync<AttendanceScanException>(() =>
+            harness.UseCase.ExecuteAsync(BuildRequest(distanceMeters: 3, accuracyMeters: double.NaN)));
+
+        Assert.Equal(AttendanceErrorCodes.LocationCoordinatesInvalid, ex.Code);
     }
 }

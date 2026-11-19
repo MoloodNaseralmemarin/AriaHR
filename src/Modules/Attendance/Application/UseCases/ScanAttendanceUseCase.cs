@@ -7,6 +7,7 @@ using AriaHR.Modules.Attendance.Application.Shifts;
 using AriaHR.Modules.Attendance.Domain.Entities;
 using AriaHR.Shared.Services;
 using AriaHR.Shared.Utils;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AriaHR.Modules.Attendance.Application.UseCases;
@@ -29,6 +30,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
     private readonly AttendancePolicyOptions _policyOptions;
     private readonly IShiftLookupService? _shiftLookupService;
     private readonly ILeaveLookupService? _leaveLookupService;
+    private readonly ILogger<ScanAttendanceUseCase>? _logger;
 
     public ScanAttendanceUseCase(
         IAttendanceRecordRepository repository,
@@ -38,7 +40,8 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
         IOptions<GpsValidationOptions> gpsOptions,
         IOptions<AttendancePolicyOptions> policyOptions,
         IShiftLookupService? shiftLookupService = null,
-        ILeaveLookupService? leaveLookupService = null)
+        ILeaveLookupService? leaveLookupService = null,
+        ILogger<ScanAttendanceUseCase>? logger = null)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
@@ -48,6 +51,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
         _policyOptions = policyOptions?.Value ?? new AttendancePolicyOptions();
         _shiftLookupService = shiftLookupService;
         _leaveLookupService = leaveLookupService;
+        _logger = logger;
     }
 
     public async Task<AttendanceScanResponse> ExecuteAsync(
@@ -183,7 +187,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
         // 4) GPS validation (missing, ranges, accuracy, freshness).
         var gps = ValidateGps(request, nowUtc, workLocation);
 
-        // 5) Server-side geofence evaluation.
+        // 5) Server-side geofence evaluation (Gate R2: uncertainty-aware membership).
         double distanceMeters = GeoDistanceCalculator.CalculateDistanceInMeters(
             gps.Latitude,
             gps.Longitude,
@@ -191,14 +195,31 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
             (double)workLocation.Longitude);
 
         double allowedRadius = (double)workLocation.AllowedRadiusInMeters;
-        if (distanceMeters > allowedRadius)
+        var geofence = GeofenceEvaluator.Evaluate(
+            distanceMeters,
+            gps.AccuracyInMeters,
+            allowedRadius,
+            _gpsOptions.MaxAssumedUncertaintyMeters);
+
+        // Coordinates are never logged; only the derived geofence facts are.
+        _logger?.LogInformation(
+            "Attendance geofence evaluated: distance={DistanceMeters:F1}m accuracy={AccuracyMeters:F1}m uncertaintyCredit={UncertaintyCreditMeters:F1}m effectiveDistance={EffectiveDistanceMeters:F1}m radius={AllowedRadiusMeters:F1}m outcome={GeofenceOutcome}",
+            geofence.DistanceInMeters,
+            gps.AccuracyInMeters,
+            geofence.UncertaintyCreditMeters,
+            geofence.EffectiveDistanceInMeters,
+            allowedRadius,
+            geofence.Outcome);
+
+        if (geofence.Outcome == GeofenceOutcome.Outside)
         {
             var data = BuildLocationData(
                 workLocation.Id,
                 workLocation.Name,
                 workLocation.AllowedRadiusInMeters,
                 distanceMeters,
-                request.GpsAccuracyInMeters);
+                gps.AccuracyInMeters,
+                geofence);
 
             throw new AttendanceScanException(
                 AttendanceErrorCodes.OutsideAllowedRadius,
@@ -266,7 +287,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
             return AttendanceScanResponse.Ok(
                 AttendanceErrorCodes.AttendanceRegistered,
                 "حضور شما با موفقیت ثبت شد",
-                BuildData(record, workLocation, CheckInAction, distanceMeters, shiftEvaluation.IsLate, shiftEvaluation.IsEarlyDeparture, isReplay: false, shiftName: shiftEvaluation.ShiftName));
+                BuildData(record, workLocation, CheckInAction, distanceMeters, shiftEvaluation.IsLate, shiftEvaluation.IsEarlyDeparture, isReplay: false, shiftName: shiftEvaluation.ShiftName, geofence: geofence, gpsAccuracy: gps.AccuracyInMeters));
         }
 
         var active = activeRecord!;
@@ -306,7 +327,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
         return AttendanceScanResponse.Ok(
             AttendanceErrorCodes.AttendanceRegistered,
             "خروج شما با موفقیت ثبت شد",
-            BuildData(active, workLocation, CheckOutAction, distanceMeters, isLate: false, isEarlyDeparture: shiftEvaluation.IsEarlyDeparture, isReplay: false, shiftName: shiftEvaluation.ShiftName));
+            BuildData(active, workLocation, CheckOutAction, distanceMeters, isLate: false, isEarlyDeparture: shiftEvaluation.IsEarlyDeparture, isReplay: false, shiftName: shiftEvaluation.ShiftName, geofence: geofence, gpsAccuracy: gps.AccuracyInMeters));
     }
 
     private GpsReading ValidateGps(
@@ -335,9 +356,28 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
                 BuildLocationData(workLocation.Id, workLocation.Name, workLocation.AllowedRadiusInMeters, gpsAccuracy: request.GpsAccuracyInMeters));
         }
 
-        if (!request.GpsAccuracyInMeters.HasValue ||
-            request.GpsAccuracyInMeters.Value <= 0 ||
-            request.GpsAccuracyInMeters.Value > _gpsOptions.MaxAccuracyMeters)
+        double? reportedAccuracy = request.GpsAccuracyInMeters;
+        if (!reportedAccuracy.HasValue ||
+            double.IsNaN(reportedAccuracy.Value) ||
+            double.IsInfinity(reportedAccuracy.Value) ||
+            reportedAccuracy.Value < 0)
+        {
+            throw new AttendanceScanException(
+                AttendanceErrorCodes.LocationCoordinatesInvalid,
+                "دقت موقعیت مکانی ارسال شده معتبر نمی‌باشد.",
+                400,
+                BuildLocationData(
+                    workLocation.Id,
+                    workLocation.Name,
+                    workLocation.AllowedRadiusInMeters,
+                    gpsAccuracy: reportedAccuracy));
+        }
+
+        double accuracyInMeters = reportedAccuracy.Value;
+
+        // Gate R1: absolute accuracy admission. This is intentionally independent of the allowed radius;
+        // a work location's 10 m radius says nothing about how precise a consumer GPS fix can be indoors.
+        if (accuracyInMeters > _gpsOptions.MaxGpsAccuracyInMeters)
         {
             throw new AttendanceScanException(
                 AttendanceErrorCodes.LocationAccuracyInsufficient,
@@ -347,7 +387,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
                     workLocation.Id,
                     workLocation.Name,
                     workLocation.AllowedRadiusInMeters,
-                    gpsAccuracy: request.GpsAccuracyInMeters));
+                    gpsAccuracy: accuracyInMeters));
         }
 
         if (!request.LocationTimestampUtc.HasValue)
@@ -377,7 +417,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
                 400);
         }
 
-        return new GpsReading(latitude, longitude, locationTimestampUtc);
+        return new GpsReading(latitude, longitude, locationTimestampUtc, accuracyInMeters);
     }
 
     private async Task<ShiftEvaluation> ValidateShiftAsync(
@@ -468,7 +508,9 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
         bool isLate,
         bool isEarlyDeparture,
         bool isReplay,
-        string? shiftName)
+        string? shiftName,
+        GeofenceEvaluation? geofence = null,
+        double? gpsAccuracy = null)
     {
         return new AttendanceScanData
         {
@@ -478,6 +520,10 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
             AttendanceAction = action,
             DistanceInMeters = ToMeters(distanceMeters),
             AllowedRadiusInMeters = workLocation.AllowedRadiusInMeters,
+            GpsAccuracyInMeters = gpsAccuracy,
+            EffectiveDistanceMeters = geofence.HasValue ? ToMeters(geofence.Value.EffectiveDistanceInMeters) : null,
+            UncertaintyCreditMeters = geofence?.UncertaintyCreditMeters,
+            GeofenceOutcome = geofence?.Outcome.ToString(),
             RegisteredAtUtc = action == CheckInAction ? record.CheckInTime : record.CheckOutTime,
             AttendanceStatus = record.Status,
             IsLate = isLate,
@@ -492,7 +538,8 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
         string workLocationName,
         decimal allowedRadiusInMeters,
         double? distanceMeters = null,
-        double? gpsAccuracy = null)
+        double? gpsAccuracy = null,
+        GeofenceEvaluation? geofence = null)
     {
         return new AttendanceScanData
         {
@@ -500,7 +547,10 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
             WorkLocationName = workLocationName,
             AllowedRadiusInMeters = allowedRadiusInMeters,
             DistanceInMeters = distanceMeters.HasValue ? ToMeters(distanceMeters.Value) : null,
-            GpsAccuracyInMeters = gpsAccuracy
+            GpsAccuracyInMeters = gpsAccuracy,
+            EffectiveDistanceMeters = geofence.HasValue ? ToMeters(geofence.Value.EffectiveDistanceInMeters) : null,
+            UncertaintyCreditMeters = geofence?.UncertaintyCreditMeters,
+            GeofenceOutcome = geofence?.Outcome.ToString()
         };
     }
 
@@ -550,7 +600,7 @@ public class ScanAttendanceUseCase : IScanAttendanceUseCase
         };
     }
 
-    private readonly record struct GpsReading(double Latitude, double Longitude, DateTime LocationTimestampUtc);
+    private readonly record struct GpsReading(double Latitude, double Longitude, DateTime LocationTimestampUtc, double AccuracyInMeters);
 
     private readonly record struct ShiftEvaluation(bool IsLate, bool IsEarlyDeparture, string? ShiftName);
 }

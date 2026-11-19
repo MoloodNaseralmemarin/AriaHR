@@ -9,6 +9,22 @@ public class AttendanceScanData
     public decimal? DistanceInMeters { get; set; }
     public decimal? AllowedRadiusInMeters { get; set; }
     public double? GpsAccuracyInMeters { get; set; }
+
+    /// <summary>
+    /// Measured distance minus the bounded uncertainty credit. Additive; may be null on older code paths and replays.
+    /// </summary>
+    public decimal? EffectiveDistanceMeters { get; set; }
+
+    /// <summary>
+    /// The part of the reported accuracy that was actually applied (capped by MaxAssumedUncertaintyMeters).
+    /// </summary>
+    public double? UncertaintyCreditMeters { get; set; }
+
+    /// <summary>
+    /// One of Inside, UncertainInside or Outside. Additive; may be null on older code paths and replays.
+    /// </summary>
+    public string? GeofenceOutcome { get; set; }
+
     public DateTime? RegisteredAtUtc { get; set; }
     public string? AttendanceStatus { get; set; }
     public bool? IsLate { get; set; }
