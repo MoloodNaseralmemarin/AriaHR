@@ -781,7 +781,7 @@ const body: ScanAttendanceRequest = {
   qrCodeToken: scannedText,
   latitude: pos.coords.latitude,
   longitude: pos.coords.longitude,
-  gpsAccuracyInMeters: pos.coords.accuracy ?? -1,
+  gpsAccuracyInMeters: pos.coords.accuracy,
   locationTimestampUtc: new Date(pos.timestamp).toISOString(),
   idempotencyKey: crypto.randomUUID(),
   deviceInfo: navigator.userAgent
